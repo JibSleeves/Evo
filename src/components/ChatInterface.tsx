@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useRef, useEffect, FormEvent } from 'react';
@@ -19,6 +20,7 @@ export function ChatInterface() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [evolutionStage, setEvolutionStage] = useState<EvolutionStage>(0);
+  const [previousEvolutionStage, setPreviousEvolutionStage] = useState<EvolutionStage>(evolutionStage);
   const [isSummarizing, setIsSummarizing] = useState(false);
   const scrollAreaViewportRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
@@ -40,6 +42,18 @@ export function ChatInterface() {
     }]);
   }, []);
 
+  useEffect(() => {
+    if (evolutionStage > previousEvolutionStage) {
+      toast({
+        title: "EvoChat Evolving...",
+        description: `Reached evolution stage ${evolutionStage}! UI adapting...`,
+        variant: "default",
+      });
+    }
+    // Update previousEvolutionStage for the next comparison, regardless of whether a toast was shown
+    setPreviousEvolutionStage(evolutionStage);
+  }, [evolutionStage, previousEvolutionStage, toast]);
+
   const handleEvolution = (messageCount: number) => {
     let newStage = 0;
     for (let i = 0; i < EVOLUTION_MESSAGE_THRESHOLDS.length; i++) {
@@ -49,15 +63,9 @@ export function ChatInterface() {
     }
     const finalStage = Math.min(newStage, 4) as EvolutionStage;
     
-    if (finalStage > evolutionStage) {
-         setEvolutionStage(finalStage); // Set state before toast to reflect current stage
-         toast({
-            title: "EvoChat Evolving...",
-            description: `Reached evolution stage ${finalStage}! UI adapting...`,
-            variant: "default",
-        });
-    } else if (finalStage < evolutionStage) { // Handle potential decrease if logic changes
-        setEvolutionStage(finalStage);
+    // evolutionStage here is the value from the previous render's state
+    if (finalStage !== evolutionStage) { 
+        setEvolutionStage(finalStage); // The useEffect will handle the toast if the stage actually changed upwards
     }
   };
 
@@ -116,10 +124,13 @@ export function ChatInterface() {
     setIsLoading(true);
 
     try {
+      // NOTE: The initialPrompt flow might not be the correct one for ongoing chat.
+      // This flow currently just acknowledges setting a personality.
+      // For a real chat, you'd likely have a different flow.
       const response = await initialPrompt({ prompt: userMessage.text });
       const botMessage: Message = {
         id: 'bot-' + Date.now(),
-        text: response.confirmation,
+        text: response.confirmation, // This will be an acknowledgement like "Personality set."
         sender: 'bot',
         timestamp: new Date(),
       };
