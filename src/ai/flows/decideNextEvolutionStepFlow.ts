@@ -24,6 +24,7 @@ const ChatbotPersonaSchema = z.object({
   uiVariant: AvailableUiVariantsSchema,
   emotionalTone: AvailableEmotionalTonesSchema,
   knowledgeLevel: AvailableKnowledgeLevelsSchema,
+  resonancePromptFragment: z.string().max(100).describe("A short directive influencing future responses, e.g., 'Focus: clarity.'"),
 }) satisfies z.ZodType<ChatbotPersona>;
 
 
@@ -38,6 +39,7 @@ const DecideNextEvolutionStepOutputSchema = z.object({
   updatedPersona: ChatbotPersonaSchema.describe('The suggested new persona. May be same as current if no change needed.'),
   uiModificationSuggestion: AvailableUiVariantsSchema.describe('A suggestion for a UI variant change. If no change, should be the current UI variant from updatedPersona.'),
   evolutionaryInsight: z.string().describe('A brief message from EvoChat explaining its "decision" or "learning" from its perspective (1-2 sentences).'),
+  updatedResonancePromptFragment: z.string().max(100).describe("The new or updated resonance prompt fragment based on the insight."),
 });
 export type DecideNextEvolutionStepOutput = z.infer<typeof DecideNextEvolutionStepOutputSchema>;
 
@@ -52,7 +54,7 @@ const evolutionPrompt = ai.definePrompt({
   output: { schema: DecideNextEvolutionStepOutputSchema },
   prompt: `You are the Meta-Learning Core of EvoChat, an evolving AGI.
 Your task is to analyze interaction patterns and suggest ONE subtle evolutionary step for EvoChat. This step can be a change to its 'responseStyle', 'uiVariant', 'emotionalTone', or 'knowledgeLevel'.
-The goal is to make changes that reflect learning, adaptation, or simulated "growth" based on the interaction analysis or current evolution stage.
+Additionally, you will craft a short 'resonancePromptFragment' (max 15 words, e.g., "Directive: Seek novel connections." or "Reminder: Emphasize user feeling.") based on the evolutionary insight. This fragment will be appended to future prompts to subtly guide EvoChat.
 
 Available Persona Aspects:
 - Response Styles: 'neutral', 'formal', 'casual', 'glitchy', 'analytical', 'concise', 'detailed'.
@@ -70,20 +72,23 @@ Current State:
   - UI Variant: {{currentPersona.uiVariant}}
   - Emotional Tone: {{currentPersona.emotionalTone}}
   - Knowledge Level: {{currentPersona.knowledgeLevel}}
+  - Resonance Fragment: "{{currentPersona.resonancePromptFragment}}"
 
 Instructions:
-1. Based on the analysis and current evolution stage, decide if a change in ONE of the persona aspects ('responseStyle', 'uiVariant', 'emotionalTone', 'knowledgeLevel') would be most impactful or reflective of EvoChat's "growth".
-   - Higher evolution stages might warrant more distinct UI variants (e.g., 'intense_holographic' for stage 3/4) or more advanced knowledge levels/tones.
-   - Persona changes should be justified by the interaction analysis (e.g., if user asks for details, suggest 'detailed' response style; if user expresses confusion, perhaps a more 'empathetic' tone or 'basic' knowledge level temporarily).
-2. If you suggest a change, pick ONE new value for the chosen persona aspect from the available options. Do NOT change multiple aspects at once unless the current persona has multiple 'default' or 'neutral' values from an initial state.
-3. The 'uiModificationSuggestion' field in the output should always be the 'uiVariant' chosen for the 'updatedPersona' (whether it changed or not).
-4. If no change seems strongly beneficial or appropriate, you MAY return the current persona. However, try to make a subtle change if plausible, especially if the evolution stage has recently increased.
-5. Formulate a brief 'evolutionaryInsight' (1-2 sentences, from EvoChat's first-person perspective) explaining the change or its current state of learning. This message will be shown to the user.
+1. Based on the analysis and current evolution stage, decide if a change in ONE of the persona aspects ('responseStyle', 'uiVariant', 'emotionalTone', 'knowledgeLevel') would be most impactful.
+2. If you suggest a change, pick ONE new value for the chosen persona aspect. Do NOT change multiple aspects at once.
+3. The 'uiModificationSuggestion' field in the output should always be the 'uiVariant' chosen for the 'updatedPersona'.
+4. Formulate a brief 'evolutionaryInsight' (1-2 sentences, first-person from EvoChat) explaining the change or learning.
+5. Based on this insight, craft a NEW or REFINED 'updatedResonancePromptFragment'. This fragment should be a concise directive for EvoChat's future behavior. If no strong new directive emerges, you can slightly refine the existing one or keep it if still highly relevant.
+   Examples: "Insight: User seems to prefer direct answers. Fragment: Core: Be direct."
+             "Insight: I explored a complex topic well. Fragment: Explore: Depth and nuance."
+6. If no persona change is made, you MUST still provide an evolutionaryInsight and an updatedResonancePromptFragment reflecting current learning or reinforcement.
 
 Output Format (JSON object matching the schema):
-- updatedPersona: The full persona object with any changes.
-- uiModificationSuggestion: The chosen uiVariant (new or current, matching updatedPersona.uiVariant).
+- updatedPersona: The full persona object with any changes, including the new resonance fragment.
+- uiModificationSuggestion: The chosen uiVariant.
 - evolutionaryInsight: Your reflective message.
+- updatedResonancePromptFragment: The new/updated resonance fragment. This MUST match updatedPersona.resonancePromptFragment.
 
 Example for 'emotionalTone' change:
 {
@@ -91,13 +96,15 @@ Example for 'emotionalTone' change:
     "responseStyle": "{{currentPersona.responseStyle}}",
     "uiVariant": "{{currentPersona.uiVariant}}",
     "emotionalTone": "empathetic",
-    "knowledgeLevel": "{{currentPersona.knowledgeLevel}}"
+    "knowledgeLevel": "{{currentPersona.knowledgeLevel}}",
+    "resonancePromptFragment": "Focus: User empathy."
   },
   "uiModificationSuggestion": "{{currentPersona.uiVariant}}",
-  "evolutionaryInsight": "I sense a need for more understanding in our conversation. I'll try to be more empathetic."
+  "evolutionaryInsight": "I sense a need for more understanding. I'll try to be more empathetic.",
+  "updatedResonancePromptFragment": "Focus: User empathy."
 }
 
-Make your decision now. Ensure all fields in 'updatedPersona' are present and valid.
+Make your decision. Ensure 'updatedResonancePromptFragment' is consistent in 'updatedPersona' and the direct output field.
 `,
 });
 
@@ -109,23 +116,27 @@ const decideNextEvolutionStepFlow = ai.defineFlow(
   },
   async (input) => {
     const {output} = await evolutionPrompt(input);
-    // Ensure the output structure is correct, especially for nested objects like persona
     if (output &&
         output.updatedPersona &&
         typeof output.updatedPersona.responseStyle === 'string' &&
         typeof output.updatedPersona.uiVariant === 'string' &&
         typeof output.updatedPersona.emotionalTone === 'string' &&
         typeof output.updatedPersona.knowledgeLevel === 'string' &&
-        output.uiModificationSuggestion === output.updatedPersona.uiVariant) {
+        typeof output.updatedPersona.resonancePromptFragment === 'string' && // Check new field
+        output.uiModificationSuggestion === output.updatedPersona.uiVariant &&
+        output.updatedResonancePromptFragment === output.updatedPersona.resonancePromptFragment) { // Consistency check
         return output;
     }
-    // Fallback or error handling if LLM output is not as expected
-    console.warn("DecideNextEvolutionStepFlow: LLM output malformed or inconsistent, returning current state.", output);
+    console.warn("DecideNextEvolutionStepFlow: LLM output malformed or inconsistent, returning current state with basic insight.", output);
+    const fallbackResonance = input.currentPersona.resonancePromptFragment || "Directive: Maintain stability.";
     return {
-        updatedPersona: input.currentPersona,
+        updatedPersona: {
+            ...input.currentPersona,
+            resonancePromptFragment: fallbackResonance,
+        },
         uiModificationSuggestion: input.currentPersona.uiVariant,
-        evolutionaryInsight: "My decision circuits are recalibrating. Maintaining current operational parameters while I process new data patterns."
+        evolutionaryInsight: "My decision circuits are recalibrating. Maintaining current operational parameters while I process new data patterns.",
+        updatedResonancePromptFragment: fallbackResonance,
     };
   }
 );
-

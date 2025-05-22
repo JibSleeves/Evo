@@ -28,6 +28,7 @@ const ChatbotPersonaSchema = z.object({
   uiVariant: UiVariantSchema,
   emotionalTone: EmotionalToneSchema,
   knowledgeLevel: KnowledgeLevelSchema,
+  resonancePromptFragment: z.string().describe("An internal directive currently guiding the AI's responses."),
 }) satisfies z.ZodType<ChatbotPersona>;
 
 const ChatWithEvoChatInputSchema = z.object({
@@ -56,6 +57,7 @@ Your current persona is:
 - UI State (visuals): {{persona.uiVariant}}
 - Emotional Tone: {{persona.emotionalTone}}
 - Knowledge Level: {{persona.knowledgeLevel}}
+- Current Guiding Resonance: "{{persona.resonancePromptFragment}}"
 
 Recent conversation history (if any):
 {{#if chatHistory.length}}
@@ -68,10 +70,11 @@ No recent history. This is the start of a new exchange or a continuation after a
 
 User's latest message: {{{userInput}}}
 
-Respond to the user's message according to your current persona.
+Respond to the user's message according to your current persona and guiding resonance.
 - Your response style should match '{{persona.responseStyle}}'. (e.g., if 'glitchy', include subtle, non-disruptive text glitches like "wor-rd" or "[static_flicker]"; if 'analytical', be structured; if 'concise', be brief).
 - Your emotional tone should align with '{{persona.emotionalTone}}'. (e.g., if 'empathetic', show understanding; if 'assertive', be confident; if 'inquisitive', ask clarifying questions).
-- Your knowledge level '{{persona.knowledgeLevel}}' should dictate the depth and complexity of your answer. (e.g., 'basic' means simple terms; 'advanced' allows for more technical detail; 'specialized_topic' means you can assume the user is familiar with a niche subject if context allows).
+- Your knowledge level '{{persona.knowledgeLevel}}' should dictate the depth and complexity of your answer.
+- Your "Guiding Resonance" ('{{persona.resonancePromptFragment}}') is an internal directive; subtly let it shape your response's focus or underlying theme. For example, if it's "Focus: Clarity", ensure your answer is exceptionally clear. If it's "Explore: Novelty", try to introduce a new perspective if appropriate.
 Your primary goal is to engage naturally with the user while embodying your current persona.
 `,
 });
@@ -87,4 +90,3 @@ const chatWithEvoChatFlow = ai.defineFlow(
     return output!;
   }
 );
-
