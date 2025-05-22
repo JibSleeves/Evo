@@ -23,15 +23,23 @@ export type UiVariant = 'default' | 'pulsing_glow' | 'minimal_glitch' | 'intense
 export type EmotionalTone = 'neutral' | 'empathetic' | 'assertive' | 'inquisitive' | 'reserved';
 export type KnowledgeLevel = 'basic' | 'intermediate' | 'advanced' | 'specialized_topic';
 
+export type AffectiveState = {
+  /** Ranges from -1 (negative) to 1 (positive) */
+  valence: number;
+  /** Ranges from -1 (calm) to 1 (excited) */
+  arousal: number;
+};
+
 export type ChatbotPersona = {
   responseStyle: ResponseStyle;
   uiVariant: UiVariant;
   emotionalTone: EmotionalTone;
   knowledgeLevel: KnowledgeLevel;
-  resonancePromptFragment: string; // New: For Resonance Tuning
+  resonancePromptFragment: string;
+  affectiveState: AffectiveState; // New: For Affective Resonance
 };
 
-// Data for system messages related to evolution and dreams
+// Data for system messages
 export type EvolutionData = {
   isEcho?: false; // To distinguish from EchoData
   evolutionaryInsight?: string;
@@ -40,5 +48,10 @@ export type EvolutionData = {
   personaBefore?: ChatbotPersona;
   personaAfter?: ChatbotPersona;
   uiModificationSuggestion?: string;
-  dreamDataUri?: string; // New: For Dream Weaving
+  dreamDataUri?: string;
+  keyLearnings?: string[]; // New: For Memory Crystalization
+  conceptualSpark?: { // New: For Conceptual Sparks
+    text: string;
+    type: 'question' | 'speculation' | 'poem_fragment';
+  };
 };

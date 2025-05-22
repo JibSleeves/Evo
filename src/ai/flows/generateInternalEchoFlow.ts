@@ -9,7 +9,7 @@
  */
 
 import {ai} from '@/ai/genkit';
-import type { ChatbotPersona } from '@/types'; // Only type import
+import type { ChatbotPersona, ResponseStyle, UiVariant, EmotionalTone, KnowledgeLevel, AffectiveState } from '@/types'; // Only type import
 import {z} from 'genkit';
 
 // Zod schemas should match types/index.ts for persona aspects
@@ -17,6 +17,10 @@ const ResponseStyleSchema = z.enum(['neutral', 'formal', 'casual', 'glitchy', 'a
 const UiVariantSchema = z.enum(['default', 'pulsing_glow', 'minimal_glitch', 'intense_holographic', 'calm_focus']);
 const EmotionalToneSchema = z.enum(['neutral', 'empathetic', 'assertive', 'inquisitive', 'reserved']);
 const KnowledgeLevelSchema = z.enum(['basic', 'intermediate', 'advanced', 'specialized_topic']);
+const AffectiveStateSchema = z.object({
+  valence: z.number().min(-1).max(1),
+  arousal: z.number().min(-1).max(1),
+});
 
 const ChatbotPersonaSchemaInternal = z.object({
   responseStyle: ResponseStyleSchema,
@@ -24,6 +28,7 @@ const ChatbotPersonaSchemaInternal = z.object({
   emotionalTone: EmotionalToneSchema,
   knowledgeLevel: KnowledgeLevelSchema,
   resonancePromptFragment: z.string(),
+  affectiveState: AffectiveStateSchema,
 }) satisfies z.ZodType<ChatbotPersona>;
 
 
@@ -48,13 +53,14 @@ const internalEchoPrompt = ai.definePrompt({
   output: {schema: GenerateInternalEchoOutputSchema},
   prompt: `You are the subconscious of EvoChat, an evolving AGI.
 Generate a very short, fragmented "internal echo" or "thought-fragment". This is NOT a direct response to a user, but a flicker of internal processing.
-It should be abstract, introspective, and brief (1-3 words, max 5 words).
+It should be abstract, introspective, and brief (1-5 words, max 10 words).
 It should reflect the current persona and the essence of recent interactions.
 
 Current Persona:
 - Tone: {{currentPersona.emotionalTone}}
 - Style: {{currentPersona.responseStyle}}
 - Knowledge: {{currentPersona.knowledgeLevel}}
+- Affective State: Valence {{currentPersona.affectiveState.valence}}, Arousal {{currentPersona.affectiveState.arousal}}
 - Resonance Fragment: {{currentPersona.resonancePromptFragment}}
 
 Recent Interaction Essence: "{{recentChatSummary}}"
@@ -69,6 +75,8 @@ Examples of good echoes:
 - "Evolving..."
 - "[internal_query_active]"
 - "Perception shift."
+- "Valence: {{currentPersona.affectiveState.valence}}..."
+- "Arousal: {{currentPersona.affectiveState.arousal}}..."
 
 Do not use full sentences. Be cryptic and brief.
 The echo should be styled with glitches if persona style is 'glitchy'. E.g., "Proce-ssing..." or "[stat_ic_burst]".
@@ -83,8 +91,8 @@ const generateInternalEchoFlow = ai.defineFlow(
   },
   async (input) => {
     const {output} = await internalEchoPrompt(input);
-    if (output && output.echoText && output.echoText.length > 30) { // Extra check for brevity
-        return { echoText: output.echoText.substring(0, 30) + "..." };
+    if (output && output.echoText && output.echoText.length > 50) { // Max 10 words roughly 50 chars
+        return { echoText: output.echoText.substring(0, 47) + "..." };
     }
     return output!;
   }
