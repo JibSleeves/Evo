@@ -25,15 +25,15 @@ export type EmotionalTone = 'neutral' | 'empathetic' | 'assertive' | 'inquisitiv
 export type KnowledgeLevel = 'basic' | 'intermediate' | 'advanced' | 'specialized_topic';
 
 export type AffectiveState = {
-  /** Ranges from -1 (negative) to 1 (positive) */
+  /** Ranges from -1 (very negative/unpleasant) to 1 (very positive/pleasant) */
   valence: number;
-  /** Ranges from -1 (calm) to 1 (excited) */
+  /** Ranges from -1 (very calm/passive) to 1 (very excited/active) */
   arousal: number;
 };
 
 export type InteractionGoal = {
-  text: string;
-  successMetrics: string[];
+  text: string; // Concise description of the goal, max 20 words.
+  successMetrics: string[]; // 1-2 simple, qualitative metrics, each max 10 words.
 };
 
 export type ChatbotPersona = {
@@ -41,11 +41,11 @@ export type ChatbotPersona = {
   uiVariant: UiVariant;
   emotionalTone: EmotionalTone;
   knowledgeLevel: KnowledgeLevel;
-  resonancePromptFragment: string;
+  resonancePromptFragment: string; // Max 15 words, a core directive.
   affectiveState: AffectiveState;
   homeostaticAffectiveRange?: { valence: [number, number]; arousal: [number, number] };
   currentAffectiveGoal?: AffectiveState;
-  currentInteractionGoal?: InteractionGoal; // Changed from emergentGoal: string
+  currentInteractionGoal?: InteractionGoal;
 };
 
 // Data for system messages
@@ -56,17 +56,18 @@ export type EvolutionData = {
   summary?: string;
   personaBefore?: ChatbotPersona;
   personaAfter?: ChatbotPersona;
-  uiModificationSuggestion?: string; // This is VUS
+  uiModificationSuggestion?: UiVariant; // Changed from string to UiVariant
   dreamDataUri?: string;
-  keyLearnings?: string[];
+  keyLearnings?: string[]; // Each learning max 70 chars, up to 3.
   conceptualSpark?: {
-    sparkText: string;
+    sparkText: string; // Max 30-40 words.
     sparkType: 'question' | 'speculation' | 'poem_fragment';
   };
   affectiveModulationStrategy?: string;
-  updatedInteractionGoal?: InteractionGoal; // Changed from emergentGoal to match new structure
-  goalSuccessEvaluation?: string; // New field for EIG-SM
+  updatedInteractionGoal?: InteractionGoal;
+  goalSuccessEvaluation?: string;
+  cognitiveDissonancePoint?: string; // Max 100 chars.
+  inferredUserSentiment?: string;
   // For future features
   resolutionPath?: 'adapt' | 'reaffirm' | 'synthesize' | 'none';
 };
-

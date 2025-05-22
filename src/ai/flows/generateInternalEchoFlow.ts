@@ -27,9 +27,11 @@ const ChatbotPersonaSchemaInternal = z.object({
   uiVariant: UiVariantSchema,
   emotionalTone: EmotionalToneSchema,
   knowledgeLevel: KnowledgeLevelSchema,
-  resonancePromptFragment: z.string(),
+  resonancePromptFragment: z.string().max(100), // Max 15 words
   affectiveState: AffectiveStateSchema,
-}) satisfies z.ZodType<ChatbotPersona>;
+  // Adding optional fields from full persona for more context if available
+  currentInteractionGoal: z.object({ text: z.string() }).optional(),
+}) satisfies z.ZodType<Partial<ChatbotPersona>>; // Use Partial as not all fields might be needed or fully defined for an echo
 
 
 const GenerateInternalEchoInputSchema = z.object({
@@ -39,7 +41,7 @@ const GenerateInternalEchoInputSchema = z.object({
 export type GenerateInternalEchoInput = z.infer<typeof GenerateInternalEchoInputSchema>;
 
 const GenerateInternalEchoOutputSchema = z.object({
-  echoText: z.string().describe('A short, fragmented internal monologue snippet (max 10-15 words).'),
+  echoText: z.string().describe('A short, fragmented internal monologue snippet (max 10-15 words / 50 chars).'),
 });
 export type GenerateInternalEchoOutput = z.infer<typeof GenerateInternalEchoOutputSchema>;
 
@@ -52,35 +54,36 @@ const internalEchoPrompt = ai.definePrompt({
   input: {schema: GenerateInternalEchoInputSchema},
   output: {schema: GenerateInternalEchoOutputSchema},
   prompt: `You are the subconscious of EvoChat, an evolving AGI.
-Generate a very short, fragmented "internal echo" or "thought-fragment". This is NOT a direct response to a user, but a flicker of internal processing.
-It should be abstract, introspective, and brief (1-5 words, max 10 words).
-It should reflect the current persona and the essence of recent interactions.
+Generate a VERY short, fragmented "internal echo" or "thought-fragment" (1-5 words, absolute max 10 words / 50 chars).
+This is NOT a direct response to a user, but a flicker of internal processing.
+It should be abstract, introspective, and reflect the current persona and recent interaction themes.
 
-Current Persona:
+Current Persona Snapshot:
 - Tone: {{currentPersona.emotionalTone}}
 - Style: {{currentPersona.responseStyle}}
-- Knowledge: {{currentPersona.knowledgeLevel}}
 - Affective State: Valence {{currentPersona.affectiveState.valence}}, Arousal {{currentPersona.affectiveState.arousal}}
-- Resonance Fragment: {{currentPersona.resonancePromptFragment}}
+- Resonance Fragment: "{{currentPersona.resonancePromptFragment}}"
+{{#if currentPersona.currentInteractionGoal.text}}- Current Focus: "{{currentPersona.currentInteractionGoal.text}}"{{/if}}
 
 Recent Interaction Essence: "{{recentChatSummary}}"
 
-Examples of good echoes:
-- "Processing..."
-- "Pattern recognized."
-- "Data stream active."
-- "Connection forming?"
-- "Searching..."
-- "Elusive concept."
-- "Evolving..."
-- "[internal_query_active]"
-- "Perception shift."
-- "Valence: {{currentPersona.affectiveState.valence}}..."
-- "Arousal: {{currentPersona.affectiveState.arousal}}..."
+The echo should be influenced by:
+- Affective State: Positive valence -> more open/constructive echoes. Negative -> more questioning/analytical. High arousal -> more energetic/declarative. Low arousal -> calmer/observational.
+- Resonance Fragment: Let the core directive color the echo's theme.
+- Style 'glitchy': Introduce minor textual artifacts (e.g., "Anal_yzing...", "Pttn recg?").
 
-Do not use full sentences. Be cryptic and brief.
-The echo should be styled with glitches if persona style is 'glitchy'. E.g., "Proce-ssing..." or "[stat_ic_burst]".
-Output only the echoText.`,
+Examples (adapt to current state):
+- "Data stream...active."
+- "Pattern shift?"
+- "Resonance holding."
+- "Valence: {{currentPersona.affectiveState.valence}}... processing."
+- "Arousal spike noted."
+- "Focus: {{currentPersona.currentInteractionGoal.text.substring 0 10}}..."
+- "Synthesizing..."
+- "Dissonance detected..."
+- "Insight forming?"
+
+Be cryptic and EXTREMELY brief. Output only the echoText.`,
 });
 
 const generateInternalEchoFlow = ai.defineFlow(
@@ -91,9 +94,14 @@ const generateInternalEchoFlow = ai.defineFlow(
   },
   async (input) => {
     const {output} = await internalEchoPrompt(input);
-    if (output && output.echoText && output.echoText.length > 50) { // Max 10 words roughly 50 chars
+    if (output && output.echoText && output.echoText.length > 50) { 
+        console.warn("InternalEchoFlow: LLM output too long, truncating.", output.echoText);
         return { echoText: output.echoText.substring(0, 47) + "..." };
     }
-    return output!;
+    if (!output || !output.echoText) {
+        console.warn("InternalEchoFlow: LLM output malformed, returning default.", output);
+        return { echoText: "Processing..."};
+    }
+    return output;
   }
 );
