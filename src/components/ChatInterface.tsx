@@ -7,20 +7,20 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { ChatMessage } from './ChatMessage';
-import { Send, Loader2, Brain, Zap, Sparkles as SparkIcon } from 'lucide-react'; // Added Sparkles
+import { Send, Loader2, Brain, Zap, Sparkles as SparkIcon } from 'lucide-react';
 import { chatWithEvoChat } from '@/ai/flows/chatWithEvoChatFlow';
 import { summarizeInteraction } from '@/ai/flows/summarize-interaction';
 import { decideNextEvolutionStep } from '@/ai/flows/decideNextEvolutionStepFlow';
 import { generateDreamVisual } from '@/ai/flows/generateDreamVisualFlow';
 import { generateInternalEcho } from '@/ai/flows/generateInternalEchoFlow';
-import { generateConceptualSpark } from '@/ai/flows/generateConceptualSparkFlow'; // New
+import { generateConceptualSpark } from '@/ai/flows/generateConceptualSparkFlow';
 import { useToast } from "@/hooks/use-toast";
 import { cn } from '@/lib/utils';
 
 const EVOLUTION_MESSAGE_THRESHOLDS = [5, 10, 15, 20];
-const ECHO_SYNTHESIS_INTERVAL = 4; // Generate an echo every N bot messages
-const CONCEPTUAL_SPARK_PROBABILITY_BASE = 0.03; // Base probability for a spark
-const CONCEPTUAL_SPARK_PROBABILITY_EVOLUTION_FACTOR = 0.02; // Additional probability per evolution stage
+const ECHO_SYNTHESIS_INTERVAL = 4; 
+const CONCEPTUAL_SPARK_PROBABILITY_BASE = 0.03; 
+const CONCEPTUAL_SPARK_PROBABILITY_EVOLUTION_FACTOR = 0.02;
 
 const INITIAL_AFFECTIVE_STATE: AffectiveState = { valence: 0, arousal: 0 };
 const INITIAL_PERSONA: ChatbotPersona = {
@@ -40,12 +40,14 @@ export function ChatInterface() {
   const [isLoading, setIsLoading] = useState(false);
   const [evolutionStage, setEvolutionStage] = useState<EvolutionStage>(0);
   const [previousEvolutionStage, setPreviousEvolutionStage] = useState<EvolutionStage>(evolutionStage);
-  const [isSummarizing, setIsSummarizing] = useState(false); // Covers dream, memory, spark
+  const [isSummarizing, setIsSummarizing] = useState(false); 
   const [chatbotPersona, setChatbotPersona] = useState<ChatbotPersona>(INITIAL_PERSONA);
   const [dynamicChatContainerClasses, setDynamicChatContainerClasses] = useState<string>('');
   const [botMessageCount, setBotMessageCount] = useState(0);
   const [crystallizedMemories, setCrystallizedMemories] = useState<string[]>([]);
   const [isGeneratingSpark, setIsGeneratingSpark] = useState(false);
+  const [lastConceptualSparkText, setLastConceptualSparkText] = useState<string | null>(null);
+
 
   const scrollAreaViewportRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
@@ -87,7 +89,6 @@ export function ChatInterface() {
         case 'calm_focus': newClasses.push('border-primary/50 shadow-[0_0_15px_hsl(var(--primary)/0.3)]'); break;
         default: break;
     }
-    // Affective state subtle influence on border
     if (chatbotPersona.affectiveState.valence > 0.5) newClasses.push('border-opacity-100');
     if (chatbotPersona.affectiveState.valence < -0.5) newClasses.push('border-opacity-50');
     if (chatbotPersona.affectiveState.arousal > 0.5) newClasses.push('shadow-lg');
@@ -108,7 +109,7 @@ export function ChatInterface() {
   const handleSummarizeAndEvolve = async () => {
     if (messages.length === 0 || isSummarizing) return;
     setIsSummarizing(true);
-    toast({ title: "Meta-Learning Cycle Initiated", description: "EvoChat is analyzing, 'dreaming', and crystalizing memories..." });
+    toast({ title: "Meta-Learning Cycle Initiated", description: "EvoChat is analyzing, 'dreaming', crystalizing memories, and evolving..." });
     
     let dreamDataUri: string | undefined = undefined;
     let summaryResult: { summary: string; analysis: string; keyLearnings?: string[] } | undefined = undefined;
@@ -120,19 +121,18 @@ export function ChatInterface() {
       if (summaryResult.keyLearnings && summaryResult.keyLearnings.length > 0) {
         setCrystallizedMemories(prevMems => {
             const newMems = [...prevMems, ...summaryResult!.keyLearnings!];
-            // Display new memories as system messages
             summaryResult!.keyLearnings!.forEach(learning => {
                 const memoryMessage: Message = {
                     id: 'memory-' + Date.now() + Math.random(),
                     text: `New Crystallized Memory: "${learning}"`,
                     sender: 'system',
                     timestamp: new Date(),
-                    data: { keyLearnings: [learning] }, // Mark it as a memory message
+                    data: { keyLearnings: [learning] }, 
                     personaState: chatbotPersona,
                 };
                 setMessages(prev => [...prev, memoryMessage]);
             });
-            return newMems.slice(-MAX_CRYSTALLIZED_MEMORIES); // Keep most recent
+            return newMems.slice(-MAX_CRYSTALLIZED_MEMORIES); 
         });
       }
       
@@ -162,25 +162,30 @@ export function ChatInterface() {
       };
       setMessages(prev => [...prev, systemSummaryMessage]);
 
-      const evolutionDecision = await decideNextEvolutionStep({
+      // Pass lastConceptualSparkText to decideNextEvolutionStep
+      const evolutionDecisionInput = {
         analysis: summaryResult.analysis,
         currentPersona: chatbotPersona,
         currentEvolutionStage: evolutionStage,
-      });
+        lastConceptualSparkText: lastConceptualSparkText, // Pass the spark here
+      };
+      const evolutionDecision = await decideNextEvolutionStep(evolutionDecisionInput);
       
-      const newPersona = { ...evolutionDecision.updatedPersona, resonancePromptFragment: evolutionDecision.updatedResonancePromptFragment };
+      // The persona and UI variant are now directly from the AI's decision
+      const newPersona = { ...evolutionDecision.updatedPersona };
       setChatbotPersona(newPersona); 
+      if (lastConceptualSparkText) setLastConceptualSparkText(null); // Reset spark after processing
 
       const evolutionInsightMessage: Message = {
         id: 'evolution-' + Date.now(),
-        text: evolutionDecision.evolutionaryInsight + ` My new guiding resonance: "${newPersona.resonancePromptFragment}". Current Affect: V=${newPersona.affectiveState.valence.toFixed(1)}, A=${newPersona.affectiveState.arousal.toFixed(1)}`,
+        text: evolutionDecision.evolutionaryInsight + ` My new guiding resonance: "${newPersona.resonancePromptFragment}". Current Affect: V=${newPersona.affectiveState.valence.toFixed(1)}, A=${newPersona.affectiveState.arousal.toFixed(1)}. UI Variant is now '${newPersona.uiVariant}'.`,
         sender: 'system', 
         timestamp: new Date(),
         data: {
             evolutionaryInsight: evolutionDecision.evolutionaryInsight,
-            personaBefore: chatbotPersona,
+            personaBefore: chatbotPersona, // This will be the persona before this update
             personaAfter: newPersona,
-            uiModificationSuggestion: evolutionDecision.uiModificationSuggestion,
+            uiModificationSuggestion: evolutionDecision.uiModificationSuggestion, // This is now the AI's choice
         } as EvolutionData,
         personaState: newPersona,
       };
@@ -252,8 +257,10 @@ export function ChatInterface() {
         personaState: chatbotPersona,
       };
       setMessages(prev => [...prev, sparkMessage]);
+      setLastConceptualSparkText(sparkResult.sparkText); // Store the spark text
 
-    } catch (error) {
+    } catch (error)
+     {
       console.error("Error generating conceptual spark:", error);
       toast({ title: "Spark Error", description: "Could not generate conceptual spark.", variant: "destructive" });
     } finally {
@@ -286,7 +293,7 @@ export function ChatInterface() {
 
     try {
       const recentHistory = messages
-        .slice(-10) // Increased history for better context
+        .slice(-10) 
         .filter(m => m.sender === 'user' || m.sender === 'bot') 
         .map(m => ({ sender: m.sender as 'user' | 'bot', text: m.text }));
 
@@ -294,7 +301,7 @@ export function ChatInterface() {
         userInput: currentInput,
         persona: chatbotPersona,
         chatHistory: recentHistory,
-        crystallizedMemories: crystallizedMemories.slice(-3), // Pass most recent memories
+        crystallizedMemories: crystallizedMemories.slice(-3), 
       });
 
       const botMessage: Message = {
@@ -316,7 +323,7 @@ export function ChatInterface() {
         if (EVOLUTION_MESSAGE_THRESHOLDS.includes(userBotMessageCount) || 
             (userBotMessageCount > 0 && userBotMessageCount % 7 === 0 && !EVOLUTION_MESSAGE_THRESHOLDS.includes(userBotMessageCount -1))
            ) {
-             setTimeout(() => handleSummarizeAndEvolve(), 100); // Slight delay for UX
+             setTimeout(() => handleSummarizeAndEvolve(), 100); 
         }
         return updatedMessages;
       });
@@ -326,10 +333,10 @@ export function ChatInterface() {
       if (newBotMessageCount % ECHO_SYNTHESIS_INTERVAL === 0) {
         setTimeout(() => handleEchoSynthesis(), 500);
       }
-      // Conceptual Spark Trigger
+      
       const sparkRoll = Math.random();
       const sparkThreshold = CONCEPTUAL_SPARK_PROBABILITY_BASE + evolutionStage * CONCEPTUAL_SPARK_PROBABILITY_EVOLUTION_FACTOR;
-      if (sparkRoll < sparkThreshold && evolutionStage > 0) { // Sparks only after stage 0
+      if (sparkRoll < sparkThreshold && evolutionStage > 0) { 
           setTimeout(() => handleConceptualSpark(), 700);
       }
       

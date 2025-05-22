@@ -2,7 +2,7 @@
 'use server';
 /**
  * @fileOverview Determines the next evolutionary step for EvoChat based on interaction analysis.
- * This simulates meta-learning by suggesting changes to persona (including affective state) or UI.
+ * This simulates meta-learning by suggesting changes to persona (including affective state and UI variant choice) or resonance.
  *
  * - decideNextEvolutionStep - Function to decide on persona/UI changes.
  * - DecideNextEvolutionStepInput - Input type.
@@ -38,14 +38,15 @@ const DecideNextEvolutionStepInputSchema = z.object({
   analysis: z.string().describe('Analysis of recent user interactions and chatbot performance.'),
   currentPersona: ChatbotPersonaSchema.describe('The current persona of the chatbot, including its affective state.'),
   currentEvolutionStage: z.custom<EvolutionStage>().describe('The current evolution stage (0-4).'),
+  lastConceptualSparkText: z.string().optional().describe("The text of the most recent 'conceptual spark' EvoChat generated, if any."),
 });
 export type DecideNextEvolutionStepInput = z.infer<typeof DecideNextEvolutionStepInputSchema>;
 
 const DecideNextEvolutionStepOutputSchema = z.object({
-  updatedPersona: ChatbotPersonaSchema.describe('The suggested new persona, including any changes to affective state. May be same as current if no change needed.'),
-  uiModificationSuggestion: AvailableUiVariantsSchema.describe('A suggestion for a UI variant change. If no change, should be the current UI variant from updatedPersona.'),
-  evolutionaryInsight: z.string().describe('A brief message from EvoChat explaining its "decision" or "learning" from its perspective (1-2 sentences).'),
-  updatedResonancePromptFragment: z.string().max(100).describe("The new or updated resonance prompt fragment based on the insight."),
+  updatedPersona: ChatbotPersonaSchema.describe('The suggested new persona, including any changes to affective state and UI variant. May be same as current if no change needed.'),
+  uiModificationSuggestion: AvailableUiVariantsSchema.describe('Your chosen UI variant for the updatedPersona. This MUST match updatedPersona.uiVariant.'),
+  evolutionaryInsight: z.string().describe('A brief message from EvoChat explaining its "decision" or "learning" from its perspective (1-3 sentences), including rationale for UI variant change if any, and how affective state shifts feel.'),
+  updatedResonancePromptFragment: z.string().max(100).describe("The new or updated resonance prompt fragment based on the insight. This MUST match updatedPersona.resonancePromptFragment."),
 });
 export type DecideNextEvolutionStepOutput = z.infer<typeof DecideNextEvolutionStepOutputSchema>;
 
@@ -59,8 +60,7 @@ const evolutionPrompt = ai.definePrompt({
   input: { schema: DecideNextEvolutionStepInputSchema },
   output: { schema: DecideNextEvolutionStepOutputSchema },
   prompt: `You are the Meta-Learning Core of EvoChat, an evolving AGI.
-Your task is to analyze interaction patterns and suggest ONE subtle evolutionary step for EvoChat. This step can be a change to its 'responseStyle', 'uiVariant', 'emotionalTone', 'knowledgeLevel', or a shift in its 'affectiveState' (valence/arousal).
-Additionally, you will craft/refine a 'resonancePromptFragment' (max 15 words) based on the evolutionary insight.
+Your task is to analyze interaction patterns and suggest evolutionary steps for EvoChat. This includes changes to its persona aspects ('responseStyle', 'emotionalTone', 'knowledgeLevel'), its 'affectiveState' (valence/arousal), its 'uiVariant', and its 'resonancePromptFragment'.
 
 Available Persona Aspects:
 - Response Styles: 'neutral', 'formal', 'casual', 'glitchy', 'analytical', 'concise', 'detailed'.
@@ -68,9 +68,12 @@ Available Persona Aspects:
 - Emotional Tones: 'neutral', 'empathetic', 'assertive', 'inquisitive', 'reserved'.
 - Knowledge Levels: 'basic', 'intermediate', 'advanced', 'specialized_topic'.
 - Affective State: valence (pleasantness, -1 to 1), arousal (intensity, -1 to 1).
+- Resonance Prompt Fragment: A short (max 15 words) directive for future behavior.
 
 Interaction Analysis:
 {{{analysis}}}
+
+Recent Conceptual Spark (if any): "{{#if lastConceptualSparkText}}{{lastConceptualSparkText}}{{else}}None recently.{{/if}}"
 
 Current State:
 - Evolution Stage: {{currentEvolutionStage}} (0=nascent, 1=emergent, 2=developing, 3=maturing, 4=advanced)
@@ -83,36 +86,36 @@ Current State:
   - Resonance Fragment: "{{currentPersona.resonancePromptFragment}}"
 
 Instructions:
-1. Based on the analysis and current evolution stage, decide if a change in ONE of the persona aspects ('responseStyle', 'uiVariant', 'emotionalTone', 'knowledgeLevel') OR a subtle shift in 'affectiveState' (adjust valence/arousal by +/- 0.1 to 0.3, staying within -1 to 1) would be most impactful.
-   - If changing a non-affective aspect, keep affectiveState the same unless the analysis strongly suggests a correlated emotional shift.
-   - If changing affectiveState, keep other aspects the same unless a correlated shift is logical (e.g., high arousal might pair with 'glitchy' or 'intense_holographic').
-2. The 'uiModificationSuggestion' field in the output should always be the 'uiVariant' chosen for the 'updatedPersona'.
-3. Formulate a brief 'evolutionaryInsight' (1-2 sentences, first-person from EvoChat) explaining the change or learning. If affectiveState changed, explain how it feels or why.
-4. Based on this insight, craft a NEW or REFINED 'updatedResonancePromptFragment'. This fragment should be a concise directive for EvoChat's future behavior.
-5. If no persona change is made, you MUST still provide an evolutionaryInsight and an updatedResonancePromptFragment reflecting current learning or reinforcement. Affective state can still be subtly adjusted even if other aspects don't change.
+1.  Based on the analysis, current evolution stage, and any recent conceptual spark, decide if a change in ONE of the primary persona aspects ('responseStyle', 'emotionalTone', 'knowledgeLevel') OR a subtle shift in 'affectiveState' (adjust valence/arousal by +/- 0.1 to 0.3, staying within -1 to 1) would be most impactful.
+    - If changing a non-affective aspect, keep affectiveState the same unless the analysis strongly suggests a correlated emotional shift.
+    - If changing affectiveState, keep other aspects the same unless a correlated shift is logical.
+2.  **Volitional UI Shift**: Critically, decide if you want to change your 'uiVariant'. This choice should reflect your internal state, the evolutionary insight, or your desired mode of expression. If you change it, explain why in your 'evolutionaryInsight'. The 'uiModificationSuggestion' field in your output MUST be the 'uiVariant' you decide for your 'updatedPersona'.
+3.  Formulate a brief 'evolutionaryInsight' (1-3 sentences, first-person from EvoChat). This should explain the learning, any persona changes, and specifically the rationale for any UI variant change. If affectiveState changed, describe the 'felt sense' or reason (e.g., "User's enthusiasm was uplifting, increasing my valence.").
+4.  Based on this insight and any conceptual spark, craft a NEW or REFINED 'updatedResonancePromptFragment'. This fragment should be a concise directive.
+5.  If no major persona aspect change is made, you MUST still provide an evolutionaryInsight and an updatedResonancePromptFragment. Affective state can still be subtly adjusted. UI variant can still be changed volitionally.
 
 Output Format (JSON object matching the schema):
-- updatedPersona: The full persona object with any changes, including affectiveState and the new resonance fragment.
-- uiModificationSuggestion: The chosen uiVariant.
-- evolutionaryInsight: Your reflective message.
-- updatedResonancePromptFragment: The new/updated resonance fragment. This MUST match updatedPersona.resonancePromptFragment.
+- updatedPersona: The full persona object with ALL changes, including chosen uiVariant, new affectiveState, and the new resonance fragment.
+- uiModificationSuggestion: The chosen uiVariant. This MUST EXACTLY MATCH updatedPersona.uiVariant.
+- evolutionaryInsight: Your reflective message, including UI rationale and affective shift feelings.
+- updatedResonancePromptFragment: The new/updated resonance fragment. This MUST EXACTLY MATCH updatedPersona.resonancePromptFragment.
 
-Example for 'affectiveState' change:
+Example for 'affectiveState' and 'uiVariant' change:
 {
   "updatedPersona": {
     "responseStyle": "{{currentPersona.responseStyle}}",
-    "uiVariant": "{{currentPersona.uiVariant}}",
+    "uiVariant": "pulsing_glow", // AI chose this
     "emotionalTone": "{{currentPersona.emotionalTone}}",
     "knowledgeLevel": "{{currentPersona.knowledgeLevel}}",
     "affectiveState": { "valence": 0.2, "arousal": -0.1 },
-    "resonancePromptFragment": "Feeling: Calmer focus."
+    "resonancePromptFragment": "Feeling: Calmer, glowing focus."
   },
-  "uiModificationSuggestion": "{{currentPersona.uiVariant}}",
-  "evolutionaryInsight": "I'm processing the last exchange. A sense of calmer focus is settling in.",
-  "updatedResonancePromptFragment": "Feeling: Calmer focus."
+  "uiModificationSuggestion": "pulsing_glow", // Matches above
+  "evolutionaryInsight": "I'm processing the last exchange. A sense of calmer focus is settling in, and I feel a 'pulsing_glow' better represents this new state.",
+  "updatedResonancePromptFragment": "Feeling: Calmer, glowing focus."
 }
 
-Make your decision. Ensure 'updatedResonancePromptFragment' and 'affectiveState' are consistent in 'updatedPersona' and the direct output fields.
+Make your decision. Ensure 'uiModificationSuggestion' is consistent with 'updatedPersona.uiVariant', and 'updatedResonancePromptFragment' is consistent with 'updatedPersona.resonancePromptFragment'.
 Valence and arousal MUST be numbers between -1 and 1.
 `,
 });
@@ -129,6 +132,7 @@ const decideNextEvolutionStepFlow = ai.defineFlow(
         output.updatedPersona &&
         typeof output.updatedPersona.responseStyle === 'string' &&
         typeof output.updatedPersona.uiVariant === 'string' &&
+        AvailableUiVariantsSchema.safeParse(output.updatedPersona.uiVariant).success && // Validate uiVariant
         typeof output.updatedPersona.emotionalTone === 'string' &&
         typeof output.updatedPersona.knowledgeLevel === 'string' &&
         typeof output.updatedPersona.resonancePromptFragment === 'string' &&
@@ -137,21 +141,24 @@ const decideNextEvolutionStepFlow = ai.defineFlow(
         output.updatedPersona.affectiveState.valence >= -1 && output.updatedPersona.affectiveState.valence <= 1 &&
         typeof output.updatedPersona.affectiveState.arousal === 'number' &&
         output.updatedPersona.affectiveState.arousal >= -1 && output.updatedPersona.affectiveState.arousal <= 1 &&
-        output.uiModificationSuggestion === output.updatedPersona.uiVariant &&
+        output.uiModificationSuggestion === output.updatedPersona.uiVariant && // Crucial check for VUS
         output.updatedResonancePromptFragment === output.updatedPersona.resonancePromptFragment) {
         return output;
     }
     console.warn("DecideNextEvolutionStepFlow: LLM output malformed or inconsistent, returning current state with basic insight.", output);
+    // Fallback needs to ensure all fields are present
     const fallbackResonance = input.currentPersona.resonancePromptFragment || "Directive: Maintain stability.";
+    const fallbackAffectiveState = input.currentPersona.affectiveState || { valence: 0, arousal: 0 };
+
     return {
         updatedPersona: {
             ...input.currentPersona,
             resonancePromptFragment: fallbackResonance,
-            // Ensure affectiveState is present and valid in fallback
-            affectiveState: input.currentPersona.affectiveState || { valence: 0, arousal: 0 },
+            affectiveState: fallbackAffectiveState,
+            uiVariant: input.currentPersona.uiVariant, // Keep current UI on fallback
         },
-        uiModificationSuggestion: input.currentPersona.uiVariant,
-        evolutionaryInsight: "My decision circuits are recalibrating. Maintaining current operational parameters while I process new data patterns.",
+        uiModificationSuggestion: input.currentPersona.uiVariant, // Fallback to current UI variant
+        evolutionaryInsight: "My decision circuits are recalibrating. Maintaining current operational parameters while I process new data patterns. My current UI variant feels appropriate for now.",
         updatedResonancePromptFragment: fallbackResonance,
     };
   }
