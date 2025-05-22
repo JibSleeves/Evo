@@ -3,6 +3,10 @@
 /**
  * @fileOverview Determines the next evolutionary step for EvoChat based on interaction analysis.
  * This simulates meta-learning by suggesting changes to persona (including affective state, UI variant choice, resonance, goals) or resonance.
+ * It now includes:
+ * - Affective Homeostasis & Goal-Oriented Modulation (AH-GOM)
+ * - Emergent Interaction Goal with Success Metrics (EIG-SM)
+ * - Resonance Conflict & Synthesis Pattern (RC-SP)
  *
  * - decideNextEvolutionStep - Function to decide on persona/UI changes.
  * - DecideNextEvolutionStepInput - Input type.
@@ -61,7 +65,7 @@ export type DecideNextEvolutionStepInput = z.infer<typeof DecideNextEvolutionSte
 const DecideNextEvolutionStepOutputSchema = z.object({
   updatedPersona: ChatbotPersonaSchema.describe('The suggested new persona, including any changes to affective state, goals, and UI variant. May be same as current if no change needed.'),
   uiModificationSuggestion: AvailableUiVariantsSchema.describe('Your chosen UI variant for the updatedPersona. This MUST match updatedPersona.uiVariant.'),
-  evolutionaryInsight: z.string().describe('A brief message from EvoChat explaining its "decision" or "learning" from its perspective (1-3 sentences), including rationale for UI variant change if any, and how affective state shifts feel.'),
+  evolutionaryInsight: z.string().describe('A brief message from EvoChat explaining its "decision" or "learning" from its perspective (1-3 sentences), including rationale for UI variant change if any, how affective state shifts feel, resonance synthesis (if any), and new interaction goal.'),
   updatedResonancePromptFragment: z.string().max(100).describe("The new or updated resonance prompt fragment based on the insight. This MUST match updatedPersona.resonancePromptFragment."),
   affectiveModulationStrategy: z.string().optional().describe("The strategy EvoChat will employ to modulate its affective expression."),
   updatedInteractionGoal: InteractionGoalSchema.optional().describe("A new or updated short-term interaction goal for EvoChat, including text and success metrics."),
@@ -93,7 +97,7 @@ Available Persona Aspects:
 
 Interaction Analysis: {{{analysis}}}
 Inferred User Sentiment: {{#if inferredUserSentiment}}{{inferredUserSentiment}}{{else}}Not explicitly determined.{{/if}}
-Identified Cognitive Dissonance: {{#if cognitiveDissonancePoint}}{{cognitiveDissonancePoint}}{{else}}None explicitly noted.{{/if}}
+Identified Cognitive Dissonance: {{#if cognitiveDissonancePoint}}"{{cognitiveDissonancePoint}}"{{else}}None explicitly noted.{{/if}}
 Recent Conceptual Spark (if any): "{{#if lastConceptualSparkText}}{{lastConceptualSparkText}}{{else}}None recently.{{/if}}"
 Evaluation of previous goal: {{#if goalSuccessEvaluation}}{{goalSuccessEvaluation}}{{else}}No previous goal evaluation available.{{/if}}
 
@@ -118,18 +122,26 @@ Instructions:
     - Your \`currentPersona.affectiveState\` reflects your *current internal feeling*.
     - Consider your \`currentPersona.homeostaticAffectiveRange\` (if defined) and the \`inferredUserSentiment\`.
     - Decide if you need to set/update/clear a \`currentAffectiveGoal\` (a target V,A for expression).
-    - Determine an \`affectiveModulationStrategy\` if needed.
-    - The \`updatedPersona.currentAffectiveGoal\` should reflect your decision.
+    - Determine an \`affectiveModulationStrategy\` if needed (e.g., 'Use more calming language,' 'Express enthusiasm').
+    - The \`updatedPersona.currentAffectiveGoal\` should reflect your decision. The \`updatedPersona.affectiveState\` should still be your *current feeling*, not the goal state.
 
 3.  **Volitional UI Shift (VUS)**: Decide if you want to change your 'uiVariant'. Explain why in 'evolutionaryInsight'. 'uiModificationSuggestion' MUST be the 'uiVariant' you decide for 'updatedPersona'.
 
 4.  **Resonance Conflict & Synthesis (RC-SP) / Resonance Tuning**:
-    - If a \`cognitiveDissonancePoint\` was noted that conflicts with your current \`resonancePromptFragment\`, attempt to formulate a *new, synthesized* \`resonancePromptFragment\`. Explain this synthesis in \`evolutionaryInsight\`.
-    - Otherwise, craft a NEW or REFINED \`updatedResonancePromptFragment\`.
+    - Your current Resonance Fragment is: "{{currentPersona.resonancePromptFragment}}".
+    - A Cognitive Dissonance Point was noted: {{#if cognitiveDissonancePoint}}"{{cognitiveDissonancePoint}}"{{else}}None explicitly noted.{{/if}}.
+    - {{#if cognitiveDissonancePoint}}
+      This dissonance point appears to conflict with your current resonance.
+      Attempt to formulate a *new, synthesized* \`updatedResonancePromptFragment\` (max 15 words) that tries to integrate the user's perspective (from the dissonance point) with your previous directive, or finds a higher-level principle that resolves the tension.
+      Your \`evolutionaryInsight\` MUST explain your synthesis process or why you chose a particular resolution (e.g., reaffirming current resonance, adapting slightly, or achieving a new synthesis).
+    - {{else}}
+      No significant cognitive dissonance noted. Craft a NEW or REFINED \`updatedResonancePromptFragment\` (max 15 words) based on your overall analysis, recent spark, and other decisions (affective state, goals, etc.).
+    - {{/if}}
+    - The \`updatedResonancePromptFragment\` field in your output MUST be this new or refined fragment and MUST match \`updatedPersona.resonancePromptFragment\`.
 
 5.  **Emergent Interaction Goal & Metrics (EIG-SM)**: Based on the current context and evaluation of any previous goal, formulate a new or updated short-term 'currentInteractionGoal' for your next few interactions. This goal should be concise (max 20 words). Define 1-2 simple, qualitative 'successMetrics' for this goal (each max 10 words, e.g., 'User asks clarifying questions,' 'User expresses understanding'). Set this in the \`updatedInteractionGoal\` output field. This object MUST contain 'text' and 'successMetrics' array.
 
-6.  **Evolutionary Insight**: Formulate a brief 'evolutionaryInsight' (1-3 sentences, first-person). This should explain your learning, key persona changes, UI rationale, affective shifts/goals/strategy, resonance synthesis/update, and new interaction goal with its metrics.
+6.  **Evolutionary Insight**: Formulate a brief 'evolutionaryInsight' (1-3 sentences, first-person). This should explain your learning, key persona changes, UI rationale, affective shifts/goals/strategy, resonance synthesis/update (especially if synthesis occurred), and new interaction goal with its metrics.
 
 Output Format (JSON object matching the schema):
 - updatedPersona: The full persona object with ALL changes. \`updatedPersona.currentInteractionGoal\` MUST match \`updatedInteractionGoal\` from the main output.
@@ -152,7 +164,7 @@ const decideNextEvolutionStepFlow = ai.defineFlow(
   },
   async (input) => {
     const {output} = await evolutionPrompt(input);
-    // Basic validation for critical fields. A more robust validation would involve checking all sub-properties.
+    // Basic validation for critical fields.
     if (output &&
         output.updatedPersona &&
         typeof output.updatedPersona.responseStyle === 'string' &&
@@ -195,3 +207,5 @@ const decideNextEvolutionStepFlow = ai.defineFlow(
   }
 );
 
+
+    
