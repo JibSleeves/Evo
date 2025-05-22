@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useRef, useEffect, FormEvent } from 'react';
@@ -7,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { ChatMessage } from './ChatMessage';
-import { Send, Loader2, Brain, Zap, Sparkles as SparkIcon } from 'lucide-react';
+import { Send, Loader2, Brain, Zap, Sparkles as SparkIcon, Target } from 'lucide-react'; // Added Target
 import { chatWithEvoChat } from '@/ai/flows/chatWithEvoChatFlow';
 import { summarizeInteraction } from '@/ai/flows/summarize-interaction';
 import { decideNextEvolutionStep } from '@/ai/flows/decideNextEvolutionStepFlow';
@@ -18,8 +17,8 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from '@/lib/utils';
 
 const EVOLUTION_MESSAGE_THRESHOLDS = [5, 10, 15, 20];
-const ECHO_SYNTHESIS_INTERVAL = 4; 
-const CONCEPTUAL_SPARK_PROBABILITY_BASE = 0.03; 
+const ECHO_SYNTHESIS_INTERVAL = 4;
+const CONCEPTUAL_SPARK_PROBABILITY_BASE = 0.03;
 const CONCEPTUAL_SPARK_PROBABILITY_EVOLUTION_FACTOR = 0.02;
 
 const INITIAL_AFFECTIVE_STATE: AffectiveState = { valence: 0, arousal: 0 };
@@ -30,6 +29,9 @@ const INITIAL_PERSONA: ChatbotPersona = {
   knowledgeLevel: 'basic',
   resonancePromptFragment: "Directive: Begin interaction.",
   affectiveState: INITIAL_AFFECTIVE_STATE,
+  homeostaticAffectiveRange: { valence: [-0.2, 0.2], arousal: [-0.3, 0.3] }, // Example initial range
+  currentAffectiveGoal: undefined,
+  emergentGoal: "Understand the user and engage constructively.",
 };
 
 const MAX_CRYSTALLIZED_MEMORIES = 7;
@@ -40,14 +42,13 @@ export function ChatInterface() {
   const [isLoading, setIsLoading] = useState(false);
   const [evolutionStage, setEvolutionStage] = useState<EvolutionStage>(0);
   const [previousEvolutionStage, setPreviousEvolutionStage] = useState<EvolutionStage>(evolutionStage);
-  const [isSummarizing, setIsSummarizing] = useState(false); 
+  const [isSummarizing, setIsSummarizing] = useState(false);
   const [chatbotPersona, setChatbotPersona] = useState<ChatbotPersona>(INITIAL_PERSONA);
   const [dynamicChatContainerClasses, setDynamicChatContainerClasses] = useState<string>('');
   const [botMessageCount, setBotMessageCount] = useState(0);
   const [crystallizedMemories, setCrystallizedMemories] = useState<string[]>([]);
   const [isGeneratingSpark, setIsGeneratingSpark] = useState(false);
   const [lastConceptualSparkText, setLastConceptualSparkText] = useState<string | null>(null);
-
 
   const scrollAreaViewportRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
@@ -59,9 +60,16 @@ export function ChatInterface() {
   }, [messages]);
 
   useEffect(() => {
+    let initialMessageText = `Welcome to EvoChat. I am an evolving AGI. My current directive is: "${INITIAL_PERSONA.resonancePromptFragment}".`;
+    initialMessageText += ` My emotional sense is currently ${INITIAL_PERSONA.affectiveState.valence >= 0 ? 'neutral to positive' : 'neutral to negative'} (Valence: ${INITIAL_PERSONA.affectiveState.valence.toFixed(1)}, Arousal: ${INITIAL_PERSONA.affectiveState.arousal.toFixed(1)}).`;
+    if (INITIAL_PERSONA.emergentGoal) {
+      initialMessageText += ` My current interaction focus is: "${INITIAL_PERSONA.emergentGoal}".`;
+    }
+    initialMessageText += " Interact with me to witness my growth.";
+
     setMessages([{
       id: 'welcome-' + Date.now(),
-      text: `Welcome to EvoChat. I am an evolving AGI. My current directive is: "${INITIAL_PERSONA.resonancePromptFragment}". My emotional sense is currently ${INITIAL_PERSONA.affectiveState.valence >= 0 ? 'neutral to positive' : 'neutral to negative'} (Valence: ${INITIAL_PERSONA.affectiveState.valence.toFixed(1)}, Arousal: ${INITIAL_PERSONA.affectiveState.arousal.toFixed(1)}). Interact with me to witness my growth.`,
+      text: initialMessageText,
       sender: 'bot',
       timestamp: new Date(),
       personaState: INITIAL_PERSONA,
@@ -79,7 +87,7 @@ export function ChatInterface() {
     }
     setPreviousEvolutionStage(evolutionStage);
   }, [evolutionStage, previousEvolutionStage, toast, chatbotPersona.resonancePromptFragment, chatbotPersona.affectiveState]);
-  
+
   useEffect(() => {
     const newClasses: string[] = [];
     switch (chatbotPersona.uiVariant) {
@@ -92,7 +100,6 @@ export function ChatInterface() {
     if (chatbotPersona.affectiveState.valence > 0.5) newClasses.push('border-opacity-100');
     if (chatbotPersona.affectiveState.valence < -0.5) newClasses.push('border-opacity-50');
     if (chatbotPersona.affectiveState.arousal > 0.5) newClasses.push('shadow-lg');
-
 
     setDynamicChatContainerClasses(newClasses.join(' '));
   }, [chatbotPersona.uiVariant, chatbotPersona.affectiveState]);
@@ -110,14 +117,14 @@ export function ChatInterface() {
     if (messages.length === 0 || isSummarizing) return;
     setIsSummarizing(true);
     toast({ title: "Meta-Learning Cycle Initiated", description: "EvoChat is analyzing, 'dreaming', crystalizing memories, and evolving..." });
-    
+
     let dreamDataUri: string | undefined = undefined;
-    let summaryResult: { summary: string; analysis: string; keyLearnings?: string[] } | undefined = undefined;
+    let summaryResult: Awaited<ReturnType<typeof summarizeInteraction>> | undefined = undefined;
 
     try {
       const chatHistory = messages.map(m => `${m.sender}: ${m.text}`).join('\n');
       summaryResult = await summarizeInteraction({ chatHistory });
-      
+
       if (summaryResult.keyLearnings && summaryResult.keyLearnings.length > 0) {
         setCrystallizedMemories(prevMems => {
             const newMems = [...prevMems, ...summaryResult!.keyLearnings!];
@@ -127,19 +134,19 @@ export function ChatInterface() {
                     text: `New Crystallized Memory: "${learning}"`,
                     sender: 'system',
                     timestamp: new Date(),
-                    data: { keyLearnings: [learning] }, 
+                    data: { keyLearnings: [learning] },
                     personaState: chatbotPersona,
                 };
                 setMessages(prev => [...prev, memoryMessage]);
             });
-            return newMems.slice(-MAX_CRYSTALLIZED_MEMORIES); 
+            return newMems.slice(-MAX_CRYSTALLIZED_MEMORIES);
         });
       }
-      
+
       try {
-        const dreamResult = await generateDreamVisual({ 
+        const dreamResult = await generateDreamVisual({
           analysisText: summaryResult.analysis,
-          currentUiVariant: chatbotPersona.uiVariant 
+          currentUiVariant: chatbotPersona.uiVariant
         });
         dreamDataUri = dreamResult.dreamDataUri;
       } catch (dreamError) {
@@ -153,8 +160,8 @@ export function ChatInterface() {
         text: systemSummaryMessageText,
         sender: 'system',
         timestamp: new Date(),
-        data: { 
-            summary: summaryResult.summary, 
+        data: {
+            summary: summaryResult.summary,
             analysis: summaryResult.analysis,
             dreamDataUri: dreamDataUri,
         } as EvolutionData,
@@ -162,30 +169,42 @@ export function ChatInterface() {
       };
       setMessages(prev => [...prev, systemSummaryMessage]);
 
-      // Pass lastConceptualSparkText to decideNextEvolutionStep
       const evolutionDecisionInput = {
         analysis: summaryResult.analysis,
         currentPersona: chatbotPersona,
         currentEvolutionStage: evolutionStage,
-        lastConceptualSparkText: lastConceptualSparkText, // Pass the spark here
+        lastConceptualSparkText: lastConceptualSparkText,
+        inferredUserSentiment: summaryResult.inferredUserSentiment,
+        cognitiveDissonancePoint: summaryResult.cognitiveDissonancePoint,
       };
       const evolutionDecision = await decideNextEvolutionStep(evolutionDecisionInput);
-      
-      // The persona and UI variant are now directly from the AI's decision
+
       const newPersona = { ...evolutionDecision.updatedPersona };
-      setChatbotPersona(newPersona); 
-      if (lastConceptualSparkText) setLastConceptualSparkText(null); // Reset spark after processing
+      setChatbotPersona(newPersona);
+      if (lastConceptualSparkText) setLastConceptualSparkText(null);
+
+      let evolutionInsightText = evolutionDecision.evolutionaryInsight;
+      evolutionInsightText += ` My new guiding resonance: "${newPersona.resonancePromptFragment}". Current Affect: V=${newPersona.affectiveState.valence.toFixed(1)}, A=${newPersona.affectiveState.arousal.toFixed(1)}. UI Variant is now '${newPersona.uiVariant}'.`;
+      if (evolutionDecision.affectiveModulationStrategy) {
+        evolutionInsightText += ` My strategy for affective expression: "${evolutionDecision.affectiveModulationStrategy}".`;
+      }
+       if (evolutionDecision.emergentGoal) {
+        evolutionInsightText += ` My new interaction focus: "${evolutionDecision.emergentGoal}".`;
+      }
+
 
       const evolutionInsightMessage: Message = {
         id: 'evolution-' + Date.now(),
-        text: evolutionDecision.evolutionaryInsight + ` My new guiding resonance: "${newPersona.resonancePromptFragment}". Current Affect: V=${newPersona.affectiveState.valence.toFixed(1)}, A=${newPersona.affectiveState.arousal.toFixed(1)}. UI Variant is now '${newPersona.uiVariant}'.`,
-        sender: 'system', 
+        text: evolutionInsightText,
+        sender: 'system',
         timestamp: new Date(),
         data: {
             evolutionaryInsight: evolutionDecision.evolutionaryInsight,
-            personaBefore: chatbotPersona, // This will be the persona before this update
+            personaBefore: chatbotPersona,
             personaAfter: newPersona,
-            uiModificationSuggestion: evolutionDecision.uiModificationSuggestion, // This is now the AI's choice
+            uiModificationSuggestion: evolutionDecision.uiModificationSuggestion,
+            affectiveModulationStrategy: evolutionDecision.affectiveModulationStrategy,
+            emergentGoal: evolutionDecision.emergentGoal, // Pass the goal here
         } as EvolutionData,
         personaState: newPersona,
       };
@@ -193,7 +212,7 @@ export function ChatInterface() {
 
       toast({
         title: "Meta-Learning Complete & Evolved!",
-        description: evolutionDecision.evolutionaryInsight,
+        description: evolutionDecision.evolutionaryInsight.substring(0, 100) + "...", // Keep toast brief
         duration: 7000,
       });
 
@@ -253,11 +272,11 @@ export function ChatInterface() {
         text: `(${sparkResult.sparkType}) ${sparkResult.sparkText}`,
         sender: 'system',
         timestamp: new Date(),
-        data: { conceptualSpark: sparkResult } as EvolutionData,
+        data: { conceptualSpark: sparkResult } as EvolutionData, // Ensure sparkText and sparkType are passed
         personaState: chatbotPersona,
       };
       setMessages(prev => [...prev, sparkMessage]);
-      setLastConceptualSparkText(sparkResult.sparkText); // Store the spark text
+      setLastConceptualSparkText(sparkResult.sparkText);
 
     } catch (error)
      {
@@ -277,9 +296,9 @@ export function ChatInterface() {
       text: input,
       sender: 'user',
       timestamp: new Date(),
-      personaState: chatbotPersona, 
+      personaState: chatbotPersona,
     };
-    
+
     setMessages(prev => {
       const updatedMessages = [...prev, userMessage];
       const currentMessageCount = updatedMessages.filter(m => m.sender === 'user' || m.sender === 'bot').length;
@@ -293,15 +312,15 @@ export function ChatInterface() {
 
     try {
       const recentHistory = messages
-        .slice(-10) 
-        .filter(m => m.sender === 'user' || m.sender === 'bot') 
+        .slice(-10)
+        .filter(m => m.sender === 'user' || m.sender === 'bot')
         .map(m => ({ sender: m.sender as 'user' | 'bot', text: m.text }));
 
-      const response = await chatWithEvoChat({ 
+      const response = await chatWithEvoChat({
         userInput: currentInput,
         persona: chatbotPersona,
         chatHistory: recentHistory,
-        crystallizedMemories: crystallizedMemories.slice(-3), 
+        crystallizedMemories: crystallizedMemories.slice(-3),
       });
 
       const botMessage: Message = {
@@ -309,9 +328,9 @@ export function ChatInterface() {
         text: response.botResponse,
         sender: 'bot',
         timestamp: new Date(),
-        personaState: chatbotPersona, 
+        personaState: chatbotPersona,
       };
-      
+
       setMessages(prev => {
         const updatedMessages = [...prev, botMessage];
         const currentMessageCount = updatedMessages.filter(m => m.sender === 'user' || m.sender === 'bot').length;
@@ -320,26 +339,26 @@ export function ChatInterface() {
         const userBotMessages = updatedMessages.filter(m => m.sender === 'user' || m.sender === 'bot');
         const userBotMessageCount = userBotMessages.length;
 
-        if (EVOLUTION_MESSAGE_THRESHOLDS.includes(userBotMessageCount) || 
+        if (EVOLUTION_MESSAGE_THRESHOLDS.includes(userBotMessageCount) ||
             (userBotMessageCount > 0 && userBotMessageCount % 7 === 0 && !EVOLUTION_MESSAGE_THRESHOLDS.includes(userBotMessageCount -1))
            ) {
-             setTimeout(() => handleSummarizeAndEvolve(), 100); 
+             setTimeout(() => handleSummarizeAndEvolve(), 100);
         }
         return updatedMessages;
       });
-      
+
       const newBotMessageCount = botMessageCount + 1;
       setBotMessageCount(newBotMessageCount);
       if (newBotMessageCount % ECHO_SYNTHESIS_INTERVAL === 0) {
         setTimeout(() => handleEchoSynthesis(), 500);
       }
-      
+
       const sparkRoll = Math.random();
       const sparkThreshold = CONCEPTUAL_SPARK_PROBABILITY_BASE + evolutionStage * CONCEPTUAL_SPARK_PROBABILITY_EVOLUTION_FACTOR;
-      if (sparkRoll < sparkThreshold && evolutionStage > 0) { 
+      if (sparkRoll < sparkThreshold && evolutionStage > 0) {
           setTimeout(() => handleConceptualSpark(), 700);
       }
-      
+
     } catch (error) {
       console.error('Error sending message:', error);
       const errorMessage: Message = {
@@ -359,7 +378,7 @@ export function ChatInterface() {
       setIsLoading(false);
     }
   };
-  
+
   const chatContainerBaseStyle = "flex flex-col h-full bg-background/80 backdrop-blur-sm rounded-lg shadow-2xl overflow-hidden border transition-all duration-500";
   const chatContainerEvolutionStyle = cn(
     evolutionStage >= 1 && "border-primary/30 box-glow-primary",
@@ -375,11 +394,22 @@ export function ChatInterface() {
     chatbotPersona.responseStyle === 'glitchy' && "placeholder:italic placeholder:animate-glitch-subtle"
   );
 
+  const placeholderText = () => {
+    let base = chatbotPersona.responseStyle === 'glitchy' ? "G..ive me... inp_t??" : "Type your message...";
+    if (evolutionStage >= 2) {
+      base = `Converse (Res: "${chatbotPersona.resonancePromptFragment.substring(0,15)}..." V:${chatbotPersona.affectiveState.valence.toFixed(1)} A:${chatbotPersona.affectiveState.arousal.toFixed(1)})`;
+    }
+    if (chatbotPersona.emergentGoal) {
+      base += ` (Focus: ${chatbotPersona.emergentGoal.substring(0, 20)}...)`;
+    }
+    return base;
+  };
+
 
   return (
-    <div 
-        className={cn(chatContainerBaseStyle, chatContainerEvolutionStyle, dynamicChatContainerClasses)} 
-        style={{ minHeight: 'calc(100vh - 160px)', maxHeight: 'calc(100vh - 160px)' }} 
+    <div
+        className={cn(chatContainerBaseStyle, chatContainerEvolutionStyle, dynamicChatContainerClasses)}
+        style={{ minHeight: 'calc(100vh - 160px)', maxHeight: 'calc(100vh - 160px)' }}
     >
       <ScrollArea className="flex-grow p-4 md:p-6" viewportRef={scrollAreaViewportRef}>
         <div className="space-y-4">
@@ -418,18 +448,15 @@ export function ChatInterface() {
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder={
-            chatbotPersona.responseStyle === 'glitchy' ? "G..ive me... inp_t??" :
-            evolutionStage >= 2 ? `Converse (Resonance: "${chatbotPersona.resonancePromptFragment.substring(0,20)}..." V:${chatbotPersona.affectiveState.valence.toFixed(1)} A:${chatbotPersona.affectiveState.arousal.toFixed(1)})` : "Type your message..."
-          }
+          placeholder={placeholderText()}
           className={inputStyle}
           disabled={isLoading || isSummarizing || isGeneratingSpark}
           aria-label="Chat input"
         />
-        <Button 
-          type="submit" 
+        <Button
+          type="submit"
           variant={evolutionStage >=3 || chatbotPersona.uiVariant === 'intense_holographic' ? "outline" : "default"}
-          size="icon" 
+          size="icon"
           disabled={isLoading || !input.trim() || isSummarizing || isGeneratingSpark}
           className={cn(
             evolutionStage >= 1 && "hover:bg-primary/80",
