@@ -24,8 +24,9 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Enforce dark theme at html level
   return (
-    <html lang="en" className="dark"> {/* Enforce dark theme at html level */}
+    <html lang="en" className="dark">
       <body 
         className={cn(
           geistSans.variable, 
