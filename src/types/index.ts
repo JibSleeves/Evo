@@ -1,3 +1,4 @@
+
 export type Message = {
   id: string;
   text: string;
@@ -30,6 +31,11 @@ export type AffectiveState = {
   arousal: number;
 };
 
+export type InteractionGoal = {
+  text: string;
+  successMetrics: string[];
+};
+
 export type ChatbotPersona = {
   responseStyle: ResponseStyle;
   uiVariant: UiVariant;
@@ -37,10 +43,9 @@ export type ChatbotPersona = {
   knowledgeLevel: KnowledgeLevel;
   resonancePromptFragment: string;
   affectiveState: AffectiveState;
-  // New for AH-GOM
   homeostaticAffectiveRange?: { valence: [number, number]; arousal: [number, number] };
   currentAffectiveGoal?: AffectiveState;
-  emergentGoal?: string; // For EGF, placeholder for now
+  currentInteractionGoal?: InteractionGoal; // Changed from emergentGoal: string
 };
 
 // Data for system messages
@@ -55,12 +60,13 @@ export type EvolutionData = {
   dreamDataUri?: string;
   keyLearnings?: string[];
   conceptualSpark?: {
-    sparkText: string; // Renamed from 'text' for clarity
-    sparkType: 'question' | 'speculation' | 'poem_fragment'; // Renamed from 'type'
+    sparkText: string;
+    sparkType: 'question' | 'speculation' | 'poem_fragment';
   };
-  // New for AH-GOM
   affectiveModulationStrategy?: string;
+  updatedInteractionGoal?: InteractionGoal; // Changed from emergentGoal to match new structure
+  goalSuccessEvaluation?: string; // New field for EIG-SM
   // For future features
   resolutionPath?: 'adapt' | 'reaffirm' | 'synthesize' | 'none';
-  emergentGoal?: string; // Actual goal text from evolution decision
 };
+

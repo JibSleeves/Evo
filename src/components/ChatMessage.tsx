@@ -1,8 +1,9 @@
+
 "use client";
 
-import type { Message, EvolutionStage, ChatbotPersona, EvolutionData, EchoData, AffectiveState } from '@/types';
+import type { Message, EvolutionStage, ChatbotPersona, EvolutionData, EchoData, AffectiveState, InteractionGoal } from '@/types';
 import { cn } from '@/lib/utils';
-import { User, Cpu, Info, Sparkles, Lightbulb, Zap, Image as ImageIcon, Brain, BookOpen, Wand2, Target } from 'lucide-react'; // Added Target
+import { User, Cpu, Info, Sparkles, Lightbulb, Zap, Image as ImageIcon, Brain, BookOpen, Wand2, Target, CheckCircle, XCircle } from 'lucide-react';
 import Image from 'next/image';
 import { EvoBotBaseIcon } from './icons/EvoBotBaseIcon';
 import { EvoBotStage1Icon } from './icons/EvoBotStage1Icon';
@@ -16,20 +17,17 @@ interface ChatMessageProps {
   currentPersona: ChatbotPersona;
 }
 
-const botIcons: Record<EvolutionStage, React.FC<EvoBotIconProps>> = { // Use EvoBotIconProps
+const botIcons: Record<EvolutionStage, React.FC<EvoBotIconProps>> = {
   0: EvoBotBaseIcon, 1: EvoBotStage1Icon, 2: EvoBotStage2Icon, 3: EvoBotStage3Icon, 4: EvoBotStage4Icon,
 };
 
-// Function to generate CSS filter based on affective state
 const getAffectiveStyle = (affectiveState?: AffectiveState) => {
   if (!affectiveState) return {};
   const { valence, arousal } = affectiveState;
-
-  const hueRotate = valence * 20; // Max +/- 20deg shift
-  const saturate = 1 + arousal * 0.3; // Max 1.3x saturation
-  const brightness = 1 + valence * 0.15; // Max 1.15x brightness
-  const scale = 1 + Math.abs(arousal) * 0.03; // Max 3% scale
-
+  const hueRotate = valence * 20;
+  const saturate = 1 + arousal * 0.3;
+  const brightness = 1 + valence * 0.15;
+  const scale = 1 + Math.abs(arousal) * 0.03;
   return {
     filter: `hue-rotate(${hueRotate}deg) saturate(${saturate}) brightness(${brightness})`,
     transform: `scale(${scale})`,
@@ -37,14 +35,13 @@ const getAffectiveStyle = (affectiveState?: AffectiveState) => {
   };
 };
 
-
 export function ChatMessage({ message, evolutionStage, currentPersona }: ChatMessageProps) {
   const isUser = message.sender === 'user';
   const isBot = message.sender === 'bot';
   const isSystem = message.sender === 'system';
 
   const effectivePersona = message.personaState || currentPersona;
-  const { uiVariant: personaUiVariant, responseStyle: personaResponseStyle, affectiveState, currentAffectiveGoal, emergentGoal } = effectivePersona;
+  const { uiVariant: personaUiVariant, responseStyle: personaResponseStyle, affectiveState, currentAffectiveGoal, currentInteractionGoal } = effectivePersona;
 
   const BotIconComponent = botIcons[isBot ? evolutionStage : 0] || EvoBotBaseIcon;
   const botIconStyle = isBot ? getAffectiveStyle(affectiveState) : {};
@@ -57,8 +54,9 @@ export function ChatMessage({ message, evolutionStage, currentPersona }: ChatMes
     if (messageData?.keyLearnings && messageData.keyLearnings.length > 0) return <BookOpen className="h-5 w-5 text-blue-400 mt-0.5 shrink-0" />;
     if (messageData?.dreamDataUri) return <ImageIcon className="h-5 w-5 text-accent mt-0.5 shrink-0" />;
     if (messageData?.evolutionaryInsight) return <Sparkles className="h-5 w-5 text-accent mt-0.5 shrink-0" />;
+    if (messageData?.updatedInteractionGoal) return <Target className="h-5 w-5 text-green-400 mt-0.5 shrink-0" />;
+    if (messageData?.goalSuccessEvaluation) return messageData.goalSuccessEvaluation.toLowerCase().includes("met") || messageData.goalSuccessEvaluation.toLowerCase().includes("achieved") ? <CheckCircle className="h-5 w-5 text-green-500 mt-0.5 shrink-0" /> : <XCircle className="h-5 w-5 text-red-500 mt-0.5 shrink-0" />;
     if (messageData?.summary || messageData?.analysis) return <Lightbulb className="h-5 w-5 text-primary/80 mt-0.5 shrink-0" />;
-    if (messageData?.emergentGoal) return <Target className="h-5 w-5 text-green-400 mt-0.5 shrink-0" />
     return <Cpu className="h-5 w-5 text-muted-foreground mt-0.5 shrink-0" />;
   };
 
@@ -68,12 +66,25 @@ export function ChatMessage({ message, evolutionStage, currentPersona }: ChatMes
     if (persona.currentAffectiveGoal) {
       str += `, AffectiveGoal: V:${persona.currentAffectiveGoal.valence.toFixed(1)},A:${persona.currentAffectiveGoal.arousal.toFixed(1)}`;
     }
-    if (persona.emergentGoal) {
-      str += `, Focus: "${persona.emergentGoal.substring(0,20)}..."`;
+    if (persona.currentInteractionGoal) {
+      str += `, Focus: "${persona.currentInteractionGoal.text.substring(0,20)}..." (Metrics: ${persona.currentInteractionGoal.successMetrics.map(m => m.substring(0,10) + "...").join(', ')})`;
     }
     str += ')';
     return str;
   };
+  
+  const renderInteractionGoal = (goal?: InteractionGoal) => {
+    if (!goal) return null;
+    return (
+      <div className="mt-1">
+        <p><strong>New Interaction Focus:</strong> {goal.text}</p>
+        {goal.successMetrics && goal.successMetrics.length > 0 && (
+          <p className="text-xs"><strong>Success Metrics:</strong> {goal.successMetrics.join(', ')}</p>
+        )}
+      </div>
+    );
+  };
+
 
   return (
     <div
@@ -89,7 +100,7 @@ export function ChatMessage({ message, evolutionStage, currentPersona }: ChatMes
         messageData?.isEcho && "border-secondary/50 opacity-80 max-w-[60%] ml-auto mr-auto",
         messageData?.conceptualSpark && "border-purple-400/50 bg-purple-900/20 max-w-[75%] ml-auto mr-auto",
         messageData?.keyLearnings && "border-blue-400/50 bg-blue-900/20 max-w-[75%] text-xs",
-        messageData?.emergentGoal && "border-green-400/50 bg-green-900/20"
+        messageData?.updatedInteractionGoal && "border-green-400/50 bg-green-900/20"
       )}
     >
       {isBot && <BotIconComponent style={botIconStyle} className={cn("mt-1 shrink-0 h-7 w-7 md:h-8 md:w-8", evolutionStage >=2 && "holographic-text", (personaUiVariant === 'pulsing_glow' || evolutionStage === 4) && 'animate-pulse-custom')} />}
@@ -106,7 +117,7 @@ export function ChatMessage({ message, evolutionStage, currentPersona }: ChatMes
             messageData?.evolutionaryInsight && "font-semibold text-accent/90",
             messageData?.conceptualSpark && "text-purple-300 font-medium",
             messageData?.keyLearnings && "text-blue-300",
-            messageData?.emergentGoal && "text-green-300 font-medium"
+            messageData?.updatedInteractionGoal && "text-green-300 font-medium"
           )}
         >
           {message.text}
@@ -127,10 +138,10 @@ export function ChatMessage({ message, evolutionStage, currentPersona }: ChatMes
 
         <span className="text-xs text-muted-foreground/80 mt-1">
           {new Date(message.timestamp).toLocaleTimeString()}
-          {(!messageData?.isEcho && (isBot || (isSystem && message.personaState && !messageData?.keyLearnings && !messageData?.conceptualSpark && !messageData?.emergentGoal))) && ` ${formatPersonaState(message.personaState)}`}
+          {(!messageData?.isEcho && (isBot || (isSystem && message.personaState && !messageData?.keyLearnings && !messageData?.conceptualSpark && !messageData?.updatedInteractionGoal))) && ` ${formatPersonaState(message.personaState)}`}
         </span>
 
-        {isSystem && messageData && (messageData.summary || messageData.analysis || messageData.evolutionaryInsight || messageData.affectiveModulationStrategy || messageData.emergentGoal) && (
+        {isSystem && messageData && (messageData.summary || messageData.analysis || messageData.evolutionaryInsight || messageData.affectiveModulationStrategy || messageData.updatedInteractionGoal || messageData.goalSuccessEvaluation) && (
           <details className="mt-2 text-xs">
             <summary className="cursor-pointer text-muted-foreground hover:text-foreground/80 flex items-center gap-1">
               <Info size={14}/> System Log Details
@@ -138,11 +149,12 @@ export function ChatMessage({ message, evolutionStage, currentPersona }: ChatMes
             <div className="mt-1 p-2 border-l-2 border-primary/50 text-muted-foreground/90 bg-background/50 rounded-r-md space-y-1">
               {messageData.summary && <p><strong>Summary:</strong> {messageData.summary}</p>}
               {messageData.analysis && <p><strong>Analysis:</strong> {messageData.analysis.length > 200 ? messageData.analysis.substring(0,200) + "..." : messageData.analysis}</p>}
+              {messageData.goalSuccessEvaluation && <p><strong>Goal Evaluation:</strong> {messageData.goalSuccessEvaluation}</p>}
               {messageData.personaBefore && <p className="mt-1"><strong>Persona Before:</strong> {formatPersonaState(messageData.personaBefore)}</p>}
               {messageData.personaAfter && <p><strong>Persona After:</strong> {formatPersonaState(messageData.personaAfter)}</p>}
               {messageData.uiModificationSuggestion && <p><strong>UI Suggestion:</strong> {messageData.uiModificationSuggestion}</p>}
               {messageData.affectiveModulationStrategy && <p><strong>Affective Strategy:</strong> {messageData.affectiveModulationStrategy}</p>}
-              {messageData.emergentGoal && !messageData.evolutionaryInsight && <p><strong>New Interaction Focus:</strong> {messageData.emergentGoal}</p>}
+              {messageData.updatedInteractionGoal && renderInteractionGoal(messageData.updatedInteractionGoal)}
             </div>
           </details>
         )}
@@ -150,3 +162,4 @@ export function ChatMessage({ message, evolutionStage, currentPersona }: ChatMes
     </div>
   );
 }
+

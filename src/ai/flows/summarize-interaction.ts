@@ -1,23 +1,26 @@
 // SummarizeInteraction.ts
 'use server';
 /**
- * @fileOverview Summarizes user interactions to identify patterns, preferences, key learnings, user sentiment, and potential cognitive dissonance for chatbot improvement.
+ * @fileOverview Summarizes user interactions to identify patterns, preferences, key learnings, user sentiment, potential cognitive dissonance, and evaluates previous interaction goals for chatbot improvement.
  *
  * - summarizeInteraction - A function that summarizes chat history and analyzes interaction patterns.
- * - SummarizeInteractionInput - The input type for the summarizeInteraction function, including chat history.
- * - SummarizeInteractionOutput - The return type for the summarizeInteraction function.
+ * - SummarizeInteractionInput - The input type for the summarizeInteraction function, including chat history and previous interaction goal.
+ * - SummarizeInteractionOutput - The return type for the summarizeInteraction function, including goal success evaluation.
  */
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
+import type { InteractionGoal } from '@/types';
+
+const PreviousInteractionGoalSchema = z.object({
+  text: z.string().describe("The text of the bot's previous interaction goal."),
+  successMetrics: z.array(z.string()).describe("The success metrics defined for that goal."),
+}) satisfies z.ZodType<InteractionGoal>;
+
 
 const SummarizeInteractionInputSchema = z.object({
   chatHistory: z.string().describe('The complete chat history to be summarized and analyzed.'),
-  // For EIG-SM (Emergent Interaction Goal with Success Metrics) - to be added later
-  // previousInteractionGoal: z.object({
-  //   text: z.string(),
-  //   successMetrics: z.array(z.string()),
-  // }).optional().describe("The bot's previous interaction goal and its success metrics, if any."),
+  previousInteractionGoal: PreviousInteractionGoalSchema.optional().describe("The bot's previous interaction goal and its success metrics, if any."),
 });
 export type SummarizeInteractionInput = z.infer<typeof SummarizeInteractionInputSchema>;
 
@@ -27,8 +30,7 @@ const SummarizeInteractionOutputSchema = z.object({
   keyLearnings: z.array(z.string().max(70)).max(3).optional().describe("Up to 3 very concise key insights, facts, or user preferences learned from this interaction that could be valuable for future context. Each learning should be a short phrase."),
   inferredUserSentiment: z.string().optional().describe("Overall inferred sentiment of the user during this interaction segment (e.g., positive, negative, neutral, curious, frustrated)."),
   cognitiveDissonancePoint: z.string().optional().describe("A brief description of any significant cognitive dissonance detected between user input and bot's established persona/resonance, if any. Max 100 chars."),
-  // For EIG-SM - to be added later
-  // goalSuccessEvaluation: z.string().optional().describe("Evaluation of whether the previous interaction goal's success metrics were met."),
+  goalSuccessEvaluation: z.string().optional().describe("Evaluation of whether the previous interaction goal's success metrics were met, based on the chat history. Be specific about which metrics were or weren't met and why."),
 });
 export type SummarizeInteractionOutput = z.infer<typeof SummarizeInteractionOutputSchema>;
 
@@ -51,7 +53,9 @@ With success metrics:
 {{#each previousInteractionGoal.successMetrics}}
 - {{this}}
 {{/each}}
-Evaluate if the chat history suggests these metrics were met. Provide this evaluation in 'goalSuccessEvaluation'.
+Carefully evaluate if the chat history suggests these metrics were met. Provide this evaluation in 'goalSuccessEvaluation'. Be specific, referencing parts of the conversation if possible. For example: "Metric 'User expresses understanding' was met when user said 'Ah, I see'. Metric 'Conversation flows naturally' was partially met, but user seemed confused at one point."
+{{else}}
+No previous interaction goal was provided for evaluation.
 {{/if}}
 
 Instructions:
@@ -62,6 +66,7 @@ Instructions:
 5.  If you detect a significant conflict or dissonance between the user's core message/views and the chatbot's likely established persona or recent resonance fragments (implied from its responses), briefly describe this point in 'cognitiveDissonancePoint' (max 100 characters).
 
 If no distinct key learnings, strong sentiment, or dissonance are apparent, you can omit those fields or provide an empty array/string.
+Focus on providing a useful 'goalSuccessEvaluation' if a 'previousInteractionGoal' was given.
 `,
 });
 
@@ -80,3 +85,4 @@ const summarizeInteractionFlow = ai.defineFlow(
     return output!;
   }
 );
+
