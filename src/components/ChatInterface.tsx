@@ -7,8 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { ChatMessage } from './ChatMessage';
-import { Send, Loader2, Brain, Zap } from 'lucide-react';
-// import { initialPrompt } from '@/ai/flows/initial-prompt'; // Replaced by chatWithEvoChatFlow
+import { Send, Loader2, Brain } from 'lucide-react';
 import { chatWithEvoChat } from '@/ai/flows/chatWithEvoChatFlow';
 import { summarizeInteraction } from '@/ai/flows/summarize-interaction';
 import { decideNextEvolutionStep } from '@/ai/flows/decideNextEvolutionStepFlow';
@@ -57,8 +56,6 @@ export function ChatInterface() {
         description: `Reached evolution stage ${evolutionStage}! UI adapting...`,
         variant: "default",
       });
-      // Potentially link evolution stage to persona UI variant more directly if needed
-      // For now, persona.uiVariant is controlled by decideNextEvolutionStepFlow
     }
     setPreviousEvolutionStage(evolutionStage);
   }, [evolutionStage, previousEvolutionStage, toast]);
@@ -71,11 +68,10 @@ export function ChatInterface() {
             newClasses.push('animate-pulse-custom [animation-duration:2s] box-glow-primary');
             break;
         case 'minimal_glitch':
-            newClasses.push('animate-glitch-subtle'); // Ensure this animation is defined or effective
+            newClasses.push('animate-glitch-subtle');
             break;
         case 'intense_holographic':
             newClasses.push('shadow-[0_0_35px_hsl(var(--accent)/0.9)] border-accent/70');
-             // For text: find a way to apply .holographic-text to bot messages or specific elements
             break;
         case 'calm_focus':
             newClasses.push('border-primary/50 shadow-[0_0_15px_hsl(var(--primary)/0.3)]');
@@ -113,14 +109,16 @@ export function ChatInterface() {
       
       const systemSummaryMessage: Message = {
         id: 'summary-' + Date.now(),
-        text: `Interaction Summary: ${summaryResult.summary}\nAnalysis: ${summaryResult.analysis.substring(0,150)}...`,
+        text: `Interaction Summary: ${summaryResult.summary}\nAnalysis Snippet: ${summaryResult.analysis.substring(0,150)}...`,
         sender: 'system',
         timestamp: new Date(),
-        data: { analysis: summaryResult.analysis } as EvolutionData
+        data: { 
+            summary: summaryResult.summary, 
+            analysis: summaryResult.analysis 
+        } as EvolutionData
       };
       setMessages(prev => [...prev, systemSummaryMessage]);
 
-      // Now, decide the next evolution step based on this summary
       const evolutionDecision = await decideNextEvolutionStep({
         analysis: summaryResult.analysis,
         currentPersona: chatbotPersona,
@@ -130,18 +128,18 @@ export function ChatInterface() {
       const evolutionInsightMessage: Message = {
         id: 'evolution-' + Date.now(),
         text: evolutionDecision.evolutionaryInsight,
-        sender: 'system', // Or 'bot' if preferred
+        sender: 'system', 
         timestamp: new Date(),
         data: {
             evolutionaryInsight: evolutionDecision.evolutionaryInsight,
             personaBefore: chatbotPersona,
             personaAfter: evolutionDecision.updatedPersona,
-            uiModification: `UI Variant changed to: ${evolutionDecision.uiModificationSuggestion}`
+            uiModificationSuggestion: evolutionDecision.uiModificationSuggestion
         } as EvolutionData,
-        personaState: evolutionDecision.updatedPersona, // Log new persona
+        personaState: evolutionDecision.updatedPersona,
       };
       setMessages(prev => [...prev, evolutionInsightMessage]);
-      setChatbotPersona(evolutionDecision.updatedPersona); // Apply persona change
+      setChatbotPersona(evolutionDecision.updatedPersona); 
 
       toast({
         title: "Meta-Learning Complete & Evolved!",
@@ -174,7 +172,7 @@ export function ChatInterface() {
       text: input,
       sender: 'user',
       timestamp: new Date(),
-      personaState: chatbotPersona, // Log current persona with user message
+      personaState: chatbotPersona, 
     };
     
     setMessages(prev => {
@@ -190,7 +188,7 @@ export function ChatInterface() {
 
     try {
       const recentHistory = messages
-        .slice(-5) // Take last 5 messages for history
+        .slice(-5) 
         .map(m => ({ sender: m.sender === 'user' ? 'user' : 'bot', text: m.text }));
 
       const response = await chatWithEvoChat({ 
@@ -204,7 +202,7 @@ export function ChatInterface() {
         text: response.botResponse,
         sender: 'bot',
         timestamp: new Date(),
-        personaState: chatbotPersona, // Bot responds with its current persona
+        personaState: chatbotPersona, 
       };
       
       setMessages(prev => {
@@ -212,10 +210,14 @@ export function ChatInterface() {
         const currentMessageCount = updatedMessages.filter(m => m.sender === 'user' || m.sender === 'bot').length;
         handleEvolution(currentMessageCount);
 
-        if (EVOLUTION_MESSAGE_THRESHOLDS.includes(currentMessageCount) || 
-            (currentMessageCount % 7 === 0 && currentMessageCount > 0 && !EVOLUTION_MESSAGE_THRESHOLDS.includes(currentMessageCount -1) )
+        // Trigger summarization/evolution at specific thresholds OR every 7 messages if not just hit a threshold
+        const userBotMessages = updatedMessages.filter(m => m.sender === 'user' || m.sender === 'bot');
+        const userBotMessageCount = userBotMessages.length;
+
+        if (EVOLUTION_MESSAGE_THRESHOLDS.includes(userBotMessageCount) || 
+            (userBotMessageCount > 0 && userBotMessageCount % 7 === 0 && !EVOLUTION_MESSAGE_THRESHOLDS.includes(userBotMessageCount -1))
            ) {
-             setTimeout(() => handleSummarizeInteraction(), 0);
+             setTimeout(() => handleSummarizeInteraction(), 0); // Use setTimeout to avoid issues with state updates in render
         }
         return updatedMessages;
       });
@@ -258,7 +260,7 @@ export function ChatInterface() {
   return (
     <div 
         className={cn(chatContainerBaseStyle, chatContainerEvolutionStyle, dynamicChatContainerClasses)} 
-        style={{ minHeight: 'calc(100vh - 160px)', maxHeight: 'calc(100vh - 160px)' }}
+        style={{ minHeight: 'calc(100vh - 160px)', maxHeight: 'calc(100vh - 160px)' }} // Ensure it fits within viewport with header/footer
     >
       <ScrollArea className="flex-grow p-4 md:p-6" viewportRef={scrollAreaViewportRef}>
         <div className="space-y-4">
@@ -316,3 +318,4 @@ export function ChatInterface() {
     </div>
   );
 }
+

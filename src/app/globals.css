@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -162,3 +163,4 @@
 .animate-glitch-subtle {
   animation: subtle-glitch-lines 0.5s infinite steps(1, end);
 }
+

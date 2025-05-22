@@ -1,3 +1,4 @@
+
 import { ChatInterface } from '@/components/ChatInterface';
 import { EvoChatLogo } from '@/components/EvoChatLogo';
 
@@ -22,3 +23,4 @@ export default function Home() {
     </div>
   );
 }
+

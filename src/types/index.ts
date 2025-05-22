@@ -24,8 +24,10 @@ export type ChatbotPersona = {
 // Data for system messages related to evolution
 export type EvolutionData = {
   evolutionaryInsight?: string;
-  analysisSummary?: string; // from summarizeInteraction
+  analysis?: string; // from summarizeInteraction (full analysis)
+  summary?: string; // from summarizeInteraction (summary part)
   personaBefore?: ChatbotPersona;
   personaAfter?: ChatbotPersona;
-  uiModification?: string; // description of UI change
+  uiModificationSuggestion?: string; // from decideNextEvolutionStep (new UI variant)
 };
+
