@@ -29,18 +29,26 @@ export function ChatMessage({ message, evolutionStage, currentPersona }: ChatMes
   const isBot = message.sender === 'bot';
   const isSystem = message.sender === 'system';
 
-  // Determine the icon based on the message's sender and current global evolution stage
   const BotIconComponent = botIcons[isBot ? evolutionStage : 0] || EvoBotBaseIcon;
   const messageData = message.data as EvolutionData | undefined;
 
   // Use persona from the message if logged, otherwise use the current global persona for styling
-  const personaUiVariant = message.personaState?.uiVariant || currentPersona.uiVariant;
-  const personaResponseStyle = message.personaState?.responseStyle || currentPersona.responseStyle;
+  const effectivePersona = message.personaState || currentPersona;
+  const personaUiVariant = effectivePersona.uiVariant;
+  const personaResponseStyle = effectivePersona.responseStyle;
+  const personaEmotionalTone = effectivePersona.emotionalTone;
+  const personaKnowledgeLevel = effectivePersona.knowledgeLevel;
+
 
   const getSystemIcon = () => {
     if (messageData?.evolutionaryInsight) return <Sparkles className="h-5 w-5 text-accent mt-0.5 shrink-0" />;
     if (messageData?.summary || messageData?.analysis) return <Lightbulb className="h-5 w-5 text-primary/80 mt-0.5 shrink-0" />;
     return <Cpu className="h-5 w-5 text-muted-foreground mt-0.5 shrink-0" />;
+  }
+  
+  const formatPersonaState = (persona: ChatbotPersona | undefined): string => {
+    if (!persona) return '';
+    return `(Style: ${persona.responseStyle}, UI: ${persona.uiVariant}, Tone: ${persona.emotionalTone}, Knowledge: ${persona.knowledgeLevel})`;
   }
 
   return (
@@ -52,20 +60,20 @@ export function ChatMessage({ message, evolutionStage, currentPersona }: ChatMes
                : "mr-auto bg-muted/50 border border-muted-foreground/30 w-full max-w-full text-sm",
         isBot && evolutionStage >=1 && "box-glow-primary",
         isBot && (personaUiVariant === 'intense_holographic' || evolutionStage >= 3) && "box-glow-accent border-accent/50",
-        isBot && personaUiVariant === 'minimal_glitch' && "overflow-hidden", // for glitch effect containment
+        isBot && personaUiVariant === 'minimal_glitch' && "overflow-hidden", 
         isSystem && "text-muted-foreground"
       )}
     >
       {isBot && <BotIconComponent className={cn("mt-1 shrink-0 h-7 w-7 md:h-8 md:w-8", 
-                                               evolutionStage >=2 && "holographic-text", // Apply holographic to advanced icons
+                                               evolutionStage >=2 && "holographic-text", 
                                                (personaUiVariant === 'pulsing_glow' || evolutionStage === 4) && 'animate-pulse-custom'
                                                )} />}
       {isUser && <User className="h-6 w-6 text-primary mt-1 shrink-0" />}
       {isSystem && getSystemIcon()}
       
-      <div className="flex flex-col min-w-0"> {/* Added min-w-0 for text wrapping */}
+      <div className="flex flex-col min-w-0"> 
         <p className={cn(
-            "text-sm leading-relaxed whitespace-pre-wrap break-words", // ensure break-words
+            "text-sm leading-relaxed whitespace-pre-wrap break-words", 
             isUser ? "text-primary-foreground" : isBot ? "text-card-foreground" : "text-muted-foreground",
             isBot && personaUiVariant === 'intense_holographic' && "holographic-text",
             isBot && (personaResponseStyle === 'glitchy' || personaUiVariant === 'minimal_glitch') && "animate-glitch-subtle",
@@ -77,7 +85,7 @@ export function ChatMessage({ message, evolutionStage, currentPersona }: ChatMes
         </p>
         <span className="text-xs text-muted-foreground/80 mt-1">
           {new Date(message.timestamp).toLocaleTimeString()}
-          {isBot && message.personaState && ` (Style: ${message.personaState.responseStyle}, UI: ${message.personaState.uiVariant})`}
+          {(isBot || (isSystem && message.personaState)) && ` ${formatPersonaState(message.personaState)}`}
         </span>
         
         {isSystem && (messageData?.summary || messageData?.analysis || messageData?.evolutionaryInsight) && (
@@ -88,8 +96,8 @@ export function ChatMessage({ message, evolutionStage, currentPersona }: ChatMes
             <div className="mt-1 p-2 border-l-2 border-primary/50 text-muted-foreground/90 bg-background/50 rounded-r-md space-y-1">
               {messageData.summary && <p><strong>Summary:</strong> {messageData.summary}</p>}
               {messageData.analysis && <p><strong>Analysis:</strong> {messageData.analysis.length > 200 ? messageData.analysis.substring(0,200) + "..." : messageData.analysis}</p>}
-              {messageData.personaBefore && <p className="mt-1"><strong>Persona Before:</strong> Style: {messageData.personaBefore.responseStyle}, UI: {messageData.personaBefore.uiVariant}</p>}
-              {messageData.personaAfter && <p><strong>Persona After:</strong> Style: {messageData.personaAfter.responseStyle}, UI: {messageData.personaAfter.uiVariant}</p>}
+              {messageData.personaBefore && <p className="mt-1"><strong>Persona Before:</strong> {formatPersonaState(messageData.personaBefore)}</p>}
+              {messageData.personaAfter && <p><strong>Persona After:</strong> {formatPersonaState(messageData.personaAfter)}</p>}
               {messageData.uiModificationSuggestion && <p><strong>UI Suggestion:</strong> {messageData.uiModificationSuggestion}</p>}
             </div>
           </details>

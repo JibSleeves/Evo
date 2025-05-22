@@ -14,9 +14,16 @@ export interface EvoBotIconProps {
   className?: string;
 }
 
+export type ResponseStyle = 'neutral' | 'formal' | 'casual' | 'glitchy' | 'analytical' | 'concise' | 'detailed';
+export type UiVariant = 'default' | 'pulsing_glow' | 'minimal_glitch' | 'intense_holographic' | 'calm_focus';
+export type EmotionalTone = 'neutral' | 'empathetic' | 'assertive' | 'inquisitive' | 'reserved';
+export type KnowledgeLevel = 'basic' | 'intermediate' | 'advanced' | 'specialized_topic';
+
 export type ChatbotPersona = {
-  responseStyle: 'neutral' | 'formal' | 'casual' | 'glitchy' | 'analytical' | 'concise' | 'detailed';
-  uiVariant: 'default' | 'pulsing_glow' | 'minimal_glitch' | 'intense_holographic' | 'calm_focus';
+  responseStyle: ResponseStyle;
+  uiVariant: UiVariant;
+  emotionalTone: EmotionalTone;
+  knowledgeLevel: KnowledgeLevel;
   // Future: memoryFocus?: string; // e.g., "focus on user's last 3 questions"
   // Future: preferredTopics?: string[];
 };

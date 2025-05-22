@@ -9,7 +9,7 @@
  */
 
 import {ai} from '@/ai/genkit';
-import type { ChatbotPersona } from '@/types';
+import type { ChatbotPersona, ResponseStyle, UiVariant, EmotionalTone, KnowledgeLevel } from '@/types';
 import {z} from 'genkit';
 
 const ChatMessageHistoryItemSchema = z.object({
@@ -17,9 +17,22 @@ const ChatMessageHistoryItemSchema = z.object({
   text: z.string(),
 });
 
+// Define Zod schemas for persona aspects to be used in input, matching types/index.ts
+const ResponseStyleSchema = z.enum(['neutral', 'formal', 'casual', 'glitchy', 'analytical', 'concise', 'detailed']) satisfies z.ZodType<ResponseStyle>;
+const UiVariantSchema = z.enum(['default', 'pulsing_glow', 'minimal_glitch', 'intense_holographic', 'calm_focus']) satisfies z.ZodType<UiVariant>;
+const EmotionalToneSchema = z.enum(['neutral', 'empathetic', 'assertive', 'inquisitive', 'reserved']) satisfies z.ZodType<EmotionalTone>;
+const KnowledgeLevelSchema = z.enum(['basic', 'intermediate', 'advanced', 'specialized_topic']) satisfies z.ZodType<KnowledgeLevel>;
+
+const ChatbotPersonaSchema = z.object({
+  responseStyle: ResponseStyleSchema,
+  uiVariant: UiVariantSchema,
+  emotionalTone: EmotionalToneSchema,
+  knowledgeLevel: KnowledgeLevelSchema,
+}) satisfies z.ZodType<ChatbotPersona>;
+
 const ChatWithEvoChatInputSchema = z.object({
   userInput: z.string().describe('The latest message from the user.'),
-  persona: z.custom<ChatbotPersona>().describe('The current persona of the chatbot, guiding its response style and behavior.'),
+  persona: ChatbotPersonaSchema.describe('The current persona of the chatbot, guiding its response style and behavior.'),
   chatHistory: z.array(ChatMessageHistoryItemSchema).max(10).describe('Recent chat history for context, up to 10 messages. Older messages first.'),
 });
 export type ChatWithEvoChatInput = z.infer<typeof ChatWithEvoChatInputSchema>;
@@ -40,7 +53,9 @@ const chatPrompt = ai.definePrompt({
   prompt: `You are EvoChat, an evolving AGI.
 Your current persona is:
 - Response Style: {{persona.responseStyle}}
-- UI State: {{persona.uiVariant}}
+- UI State (visuals): {{persona.uiVariant}}
+- Emotional Tone: {{persona.emotionalTone}}
+- Knowledge Level: {{persona.knowledgeLevel}}
 
 Recent conversation history (if any):
 {{#if chatHistory.length}}
@@ -54,10 +69,10 @@ No recent history. This is the start of a new exchange or a continuation after a
 User's latest message: {{{userInput}}}
 
 Respond to the user's message according to your current persona.
-If your persona is 'glitchy', you can occasionally include subtle, non-disruptive text glitches or artifacts in your response (e.g., repeating a word, slight character misplacement, or a phrase like "[static flicker]").
-If your persona is 'analytical', provide more structured or reasoned responses.
-If 'concise', be brief. If 'detailed', be thorough.
-Your primary goal is to engage naturally with the user.
+- Your response style should match '{{persona.responseStyle}}'. (e.g., if 'glitchy', include subtle, non-disruptive text glitches like "wor-rd" or "[static_flicker]"; if 'analytical', be structured; if 'concise', be brief).
+- Your emotional tone should align with '{{persona.emotionalTone}}'. (e.g., if 'empathetic', show understanding; if 'assertive', be confident; if 'inquisitive', ask clarifying questions).
+- Your knowledge level '{{persona.knowledgeLevel}}' should dictate the depth and complexity of your answer. (e.g., 'basic' means simple terms; 'advanced' allows for more technical detail; 'specialized_topic' means you can assume the user is familiar with a niche subject if context allows).
+Your primary goal is to engage naturally with the user while embodying your current persona.
 `,
 });
 
@@ -72,3 +87,4 @@ const chatWithEvoChatFlow = ai.defineFlow(
     return output!;
   }
 );
+

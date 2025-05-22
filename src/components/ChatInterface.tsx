@@ -18,6 +18,8 @@ const EVOLUTION_MESSAGE_THRESHOLDS = [5, 10, 15, 20]; // Messages count for stag
 const INITIAL_PERSONA: ChatbotPersona = {
   responseStyle: 'neutral',
   uiVariant: 'default',
+  emotionalTone: 'neutral',
+  knowledgeLevel: 'basic',
 };
 
 export function ChatInterface() {
@@ -42,7 +44,7 @@ export function ChatInterface() {
   useEffect(() => {
     setMessages([{
       id: 'welcome-' + Date.now(),
-      text: "Welcome to EvoChat. I am an evolving AGI. Interact with me to witness my growth. My current persona is neutral.",
+      text: `Welcome to EvoChat. I am an evolving AGI. Interact with me to witness my growth. My current persona is: Style: ${INITIAL_PERSONA.responseStyle}, Tone: ${INITIAL_PERSONA.emotionalTone}, Knowledge: ${INITIAL_PERSONA.knowledgeLevel}, UI: ${INITIAL_PERSONA.uiVariant}.`,
       sender: 'bot',
       timestamp: new Date(),
       personaState: INITIAL_PERSONA,
@@ -115,7 +117,8 @@ export function ChatInterface() {
         data: { 
             summary: summaryResult.summary, 
             analysis: summaryResult.analysis 
-        } as EvolutionData
+        } as EvolutionData,
+        personaState: chatbotPersona, // Log current persona with summary message
       };
       setMessages(prev => [...prev, systemSummaryMessage]);
 
@@ -136,7 +139,7 @@ export function ChatInterface() {
             personaAfter: evolutionDecision.updatedPersona,
             uiModificationSuggestion: evolutionDecision.uiModificationSuggestion
         } as EvolutionData,
-        personaState: evolutionDecision.updatedPersona,
+        personaState: evolutionDecision.updatedPersona, // Log NEW persona with evolution message
       };
       setMessages(prev => [...prev, evolutionInsightMessage]);
       setChatbotPersona(evolutionDecision.updatedPersona); 
@@ -155,6 +158,7 @@ export function ChatInterface() {
         text: 'Error: Meta-learning cycle encountered an issue.',
         sender: 'system',
         timestamp: new Date(),
+        personaState: chatbotPersona, // Log current persona
       };
       setMessages(prev => [...prev, errorMessage]);
     } finally {
@@ -210,14 +214,13 @@ export function ChatInterface() {
         const currentMessageCount = updatedMessages.filter(m => m.sender === 'user' || m.sender === 'bot').length;
         handleEvolution(currentMessageCount);
 
-        // Trigger summarization/evolution at specific thresholds OR every 7 messages if not just hit a threshold
         const userBotMessages = updatedMessages.filter(m => m.sender === 'user' || m.sender === 'bot');
         const userBotMessageCount = userBotMessages.length;
 
         if (EVOLUTION_MESSAGE_THRESHOLDS.includes(userBotMessageCount) || 
             (userBotMessageCount > 0 && userBotMessageCount % 7 === 0 && !EVOLUTION_MESSAGE_THRESHOLDS.includes(userBotMessageCount -1))
            ) {
-             setTimeout(() => handleSummarizeInteraction(), 0); // Use setTimeout to avoid issues with state updates in render
+             setTimeout(() => handleSummarizeInteraction(), 0); 
         }
         return updatedMessages;
       });
@@ -229,6 +232,7 @@ export function ChatInterface() {
         text: 'Error: Could not connect to EvoMind. My apologies, please try again.',
         sender: 'system',
         timestamp: new Date(),
+        personaState: chatbotPersona,
       };
       setMessages(prev => [...prev, errorMessage]);
       toast({
@@ -260,7 +264,7 @@ export function ChatInterface() {
   return (
     <div 
         className={cn(chatContainerBaseStyle, chatContainerEvolutionStyle, dynamicChatContainerClasses)} 
-        style={{ minHeight: 'calc(100vh - 160px)', maxHeight: 'calc(100vh - 160px)' }} // Ensure it fits within viewport with header/footer
+        style={{ minHeight: 'calc(100vh - 160px)', maxHeight: 'calc(100vh - 160px)' }} 
     >
       <ScrollArea className="flex-grow p-4 md:p-6" viewportRef={scrollAreaViewportRef}>
         <div className="space-y-4">
@@ -295,7 +299,7 @@ export function ChatInterface() {
           onChange={(e) => setInput(e.target.value)}
           placeholder={
             chatbotPersona.responseStyle === 'glitchy' ? "G..ive me... inp_t??" :
-            evolutionStage >= 2 ? `Converse with the evolving AGI (Persona: ${chatbotPersona.responseStyle})...` : "Type your message..."
+            evolutionStage >= 2 ? `Converse with EvoChat (Persona: ${chatbotPersona.responseStyle}, Tone: ${chatbotPersona.emotionalTone})` : "Type your message..."
           }
           className={inputStyle}
           disabled={isLoading || isSummarizing}
