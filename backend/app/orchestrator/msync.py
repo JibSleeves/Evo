@@ -32,9 +32,7 @@ class MultiModelOrchestrator:
         counts = Counter(normalized)
         best_norm, _ = counts.most_common(1)[0]
         candidates = [a for a in non_empty if self._normalize(a) == best_norm]
-        if candidates:
-            return candidates[0]
-        return max(non_empty, key=len)
+        return candidates[0] if candidates else max(non_empty, key=len)
 
     def _normalize(self, text: str) -> str:
         return " ".join(text.lower().split())
