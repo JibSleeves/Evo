@@ -137,8 +137,9 @@ class CodeExecBody(BaseModel):
 
 @app.post("/api/exec")
 async def exec_code(body: CodeExecBody):
-    result = run_code_safely(language=body.language, code=body.code, timeout_sec=body.timeout_sec)
-    return result
+    return run_code_safely(
+        language=body.language, code=body.code, timeout_sec=body.timeout_sec
+    )
 
 
 class ImageGenBody(BaseModel):
