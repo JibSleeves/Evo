@@ -50,9 +50,7 @@ class RagPipeline:
 
     def _pdf_to_text(self, raw: bytes) -> str:
         reader = PdfReader(io.BytesIO(raw))
-        parts: List[str] = []
-        for page in reader.pages:
-            parts.append(page.extract_text() or "")
+        parts: List[str] = [(page.extract_text() or "") for page in reader.pages]
         return "\n".join(parts)
 
     def _chunk(self, text: str, max_tokens: int = 500) -> List[str]:
