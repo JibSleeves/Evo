@@ -74,11 +74,11 @@ class RagPipeline:
                 if not v:
                     raise RuntimeError("Empty embedding from Ollama")
                 vectors.append(v)
-            except Exception:
-                # naive hashing-based fallback embedding
-                seed = abs(hash(t)) % (10**8)
-                rng = np.random.default_rng(seed)
-                vectors.append(rng.standard_normal(384).tolist())
+            except Exception as e:
+                # Deterministic fallback embedding: zero vector
+                import logging
+                logging.warning(f"Embedding unavailable for input: '{t}'. Using deterministic fallback. Error: {e}")
+                vectors.append([0.0] * 384)
         arr = np.array(vectors, dtype=np.float32)
         arr = np.apply_along_axis(_normalize, 1, arr)
         return arr
