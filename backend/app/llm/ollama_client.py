@@ -51,7 +51,14 @@ class OllamaClient:
         # Note: Ollama model create is via CLI; we shell out here for simplicity
         import subprocess
         logger.info(f"Creating Ollama model: {name} from {modelfile_path}")
-        subprocess.run(["ollama", "create", name, "-f", modelfile_path], check=True)
+        try:
+            subprocess.run(["ollama", "create", name, "-f", modelfile_path], check=True)
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Failed to create Ollama model '{name}' from '{modelfile_path}': {e}")
+            raise RuntimeError(f"Ollama model creation failed for '{name}'") from e
+        except Exception as e:
+            logger.error(f"Unexpected error during Ollama model creation: {e}")
+            raise
 
     async def aclose(self) -> None:
         await self._client.aclose()
