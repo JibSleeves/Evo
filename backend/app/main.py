@@ -174,7 +174,13 @@ async def upload_gguf(name: str = Form(...), file: UploadFile = File(...)):
     with open(tmp_modelfile, "w") as f:
         f.write(modelfile)
 
-    await ollama_client.create_model(name=name, modelfile_path=tmp_modelfile)
+    import asyncio
+
+    loop = asyncio.get_running_loop()
+    await loop.run_in_executor(
+        None,
+        lambda: ollama_client.create_model(name=name, modelfile_path=tmp_modelfile)
+    )
     return {"ok": True, "name": name}
 
 
