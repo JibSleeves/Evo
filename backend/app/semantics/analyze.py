@@ -26,5 +26,4 @@ def summarize(text: str) -> str:
 
 def sentiment(text: str):
     clf = get_sentiment()
-    res = clf(text[:2000])
-    return res
+    return clf(text[:2000])
