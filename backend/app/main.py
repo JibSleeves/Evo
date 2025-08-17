@@ -189,8 +189,7 @@ async def web_search(q: str):
     if not settings.allow_web_access:
         raise HTTPException(status_code=403, detail="Web access disabled")
     from app.tools.web_search import search_and_summarize
-    result = await search_and_summarize(q)
-    return result
+    return await search_and_summarize(q)
 
 
 @app.get("/api/semantics")
