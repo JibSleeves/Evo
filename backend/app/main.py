@@ -69,13 +69,18 @@ async def chat(body: ChatBody):
     if body.use_rag:
         context_docs = rag.retrieve(body.message, top_k=4)
 
+    import logging
+    logger = logging.getLogger(__name__)
+
     image_context: List[str] = []
     if body.image_urls:
         for url in body.image_urls:
             try:
                 desc = await analyze_image(url)
                 image_context.append(desc)
-            except Exception:
+            except Exception as e:
+                logger.error(f"Image analysis failed for URL {url}: {e}", exc_info=True)
+                image_context.append(f"Image analysis failed for {url}.")
                 continue
 
     tool_context = ""
